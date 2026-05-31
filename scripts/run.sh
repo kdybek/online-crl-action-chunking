@@ -4,12 +4,14 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
 #SBATCH --gres=gpu:1
-#SBATCH --time=48:00:00
+#SBATCH --time=8:00:00
 #SBATCH --account=plgcrlreason-gpu-gh200
 #SBATCH --partition=plgrid-gpu-gh200
-#SBATCH --output=logs/%x_%j.out
-#SBATCH --error=logs/%x_%j.err
 
+#SBATCH --array=0-24
+
+#SBATCH --output=logs/%x_%A_%a.out
+#SBATCH --error=logs/%x_%A_%a.err
 unset LD_LIBRARY_PATH
 
 ml Python/3.11.5
@@ -95,14 +97,19 @@ else
     FLAGS="$FLAGS --total_env_steps 60000000 --batch_size 256 --n_hidden 2"
 fi
 
-for seed in 0 1 2 3 4; do
-    for action_chunk_length in 1 3 5 10 15; do
-        jaxgcrl accrl \
-            --env "$env" \
-            --action_chunk_length $action_chunk_length \
-            --seed $seed \
-            --wandb_group "$group" \
-            --exp_name "${env}_acl_${action_chunk_length}_seed_${seed}" \
-            $FLAGS
-    done
-done
+seeds=(0 1 2 3 4)
+chunk_lengths=(1 3 5 10 15)
+
+seed_idx=$((SLURM_ARRAY_TASK_ID / 5))
+chunk_idx=$((SLURM_ARRAY_TASK_ID % 5))
+
+seed=${seeds[$seed_idx]}
+action_chunk_length=${chunk_lengths[$chunk_idx]}
+
+jaxgcrl accrl \
+    --env "$env" \
+    --action_chunk_length "$action_chunk_length" \
+    --seed "$seed" \
+    --wandb_group "$group" \
+    --exp_name "${env}_acl_${action_chunk_length}_seed_${seed}" \
+    $FLAGS
