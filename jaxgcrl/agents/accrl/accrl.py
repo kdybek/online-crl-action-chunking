@@ -12,7 +12,6 @@ import numpy as np
 import optax
 from brax import base, envs
 from brax.training import types
-from brax.v1 import envs as envs_v1
 from etils import epath
 from flax.struct import dataclass
 from flax.training.train_state import TrainState
@@ -25,8 +24,8 @@ from .losses import update_actor_and_alpha, update_critic, crl_action_sensitivit
 from .networks import Actor, Encoder
 
 Metrics = types.Metrics
-Env = Union[envs.Env, envs_v1.Env, envs_v1.Wrapper]
-State = Union[envs.State, envs_v1.State]
+Env = envs.Env
+State = envs.State
 
 
 @dataclass
@@ -237,8 +236,8 @@ class ACCRL:
     def train_fn(
         self,
         config: "RunConfig",
-        train_env: Union[envs_v1.Env, envs.Env],
-        eval_env: Optional[Union[envs_v1.Env, envs.Env]] = None,
+        train_env: envs.Env,
+        eval_env: Optional[envs.Env] = None,
         randomization_fn: Optional[
             Callable[[base.System, jnp.ndarray], Tuple[base.System, base.System]]
         ] = None,

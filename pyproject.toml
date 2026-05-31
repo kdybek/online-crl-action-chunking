@@ -9,7 +9,7 @@ dependencies = [
   "pip",
   "jax[cuda12]==0.7.2",
   "flax",
-  "brax==0.12.1",
+  "brax==0.12.5",
   "matplotlib",
   "mujoco",
   "mujoco-mjx",
