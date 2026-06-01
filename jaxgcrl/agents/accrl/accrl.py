@@ -189,6 +189,7 @@ class ACCRL:
     batch_size: int = 256
 
     action_chunk_length: int = 3
+    single_action_actor: bool = False
 
     # gamma
     discounting: float = 0.99
@@ -305,9 +306,10 @@ class ACCRL:
 
         # Network setup
         # Actor
+        actor_action_chunk_length = self.action_chunk_length if not self.single_action_actor else 1
         actor = Actor(
             action_size=action_size,
-            action_chunk_length=self.action_chunk_length,
+            action_chunk_length=actor_action_chunk_length,
             network_width=self.h_dim,
             network_depth=self.n_hidden,
             skip_connections=self.skip_connections,
@@ -438,7 +440,7 @@ class ACCRL:
 
                 replan_len = jax.lax.cond(
                     self.random_replanning and chunk_idx == 0,
-                    lambda: jax.random.randint(replan_key, (), 1, self.action_chunk_length + 1),
+                    lambda: jax.random.randint(replan_key, (), 1, actor_action_chunk_length + 1),
                     lambda: replan_len,
                 )
 
@@ -457,7 +459,7 @@ class ACCRL:
             actions = get_actions(actor_state, env_state.obs, key)  # Not optimal, but should be fine for now.
             (env_state, _, _, _, _), data = jax.lax.scan(
                 f,
-                (env_state, key, 0, actions, self.action_chunk_length),
+                (env_state, key, 0, actions, actor_action_chunk_length),
                 (),
                 length=self.unroll_length
             )
@@ -503,6 +505,8 @@ class ACCRL:
                 obs_size=obs_size,
                 goal_indices=train_env.goal_indices,
                 target_entropy=target_entropy,
+                single_action_actor=self.single_action_actor,
+                critic_action_chunk_length=self.action_chunk_length,
             )
 
             networks = dict(
@@ -645,7 +649,7 @@ class ACCRL:
         )
 
         receding_horizons = [1, 3, 5, 10, 15, 30]
-        receding_horizons = [h for h in receding_horizons if h <= self.action_chunk_length]
+        receding_horizons = [h for h in receding_horizons if h <= actor_action_chunk_length]
         """Setting up evaluators"""
         evaluators = [
             ChunkedActorEvaluator(
@@ -656,7 +660,7 @@ class ACCRL:
                 num_eval_envs=config.num_eval_envs,
                 episode_length=config.episode_length,
                 key=eval_env_key,
-                full_chunk=receding_horizon == self.action_chunk_length,
+                full_chunk=receding_horizon == actor_action_chunk_length,
             ) for receding_horizon in receding_horizons
         ]
 
