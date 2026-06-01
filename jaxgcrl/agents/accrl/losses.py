@@ -40,11 +40,6 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
         observation = jnp.concatenate([state, goal], axis=1)
 
         means, log_stds = networks["actor"].apply(actor_params, observation)
-
-        if config["single_action_actor"]:
-            means = jnp.repeat(means, repeats=config["critic_action_chunk_length"], axis=-2)
-            log_stds = jnp.repeat(log_stds, repeats=config["critic_action_chunk_length"], axis=-2)
-
         means = jnp.reshape(means, (means.shape[0], -1))
         log_stds = jnp.reshape(log_stds, (log_stds.shape[0], -1))
         stds = jnp.exp(log_stds)
