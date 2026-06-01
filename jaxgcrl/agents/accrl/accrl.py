@@ -505,6 +505,8 @@ class ACCRL:
                 obs_size=obs_size,
                 goal_indices=train_env.goal_indices,
                 target_entropy=target_entropy,
+                single_action_actor=self.single_action_actor,
+                critic_action_chunk_length=self.action_chunk_length,
             )
 
             networks = dict(
