@@ -12,6 +12,7 @@
 
 #SBATCH --output=logs/%x_%A_%a.out
 #SBATCH --error=logs/%x_%A_%a.err
+
 unset LD_LIBRARY_PATH
 
 ml Python/3.11.5
@@ -29,6 +30,7 @@ env=""
 group=""
 random_replanning=0
 action_shuffling=0
+single_action_actor=0
 big_net=0
 
 while [[ $# -gt 0 ]]; do
@@ -47,6 +49,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --action_shuffling)
       action_shuffling=1
+      shift
+      ;;
+    --single_action_actor)
+      single_action_actor=1
       shift
       ;;
     --big_net)
@@ -89,6 +95,10 @@ fi
 
 if [[ $action_shuffling -eq 1 ]]; then
     FLAGS="$FLAGS --action_shuffling"
+fi
+
+if [[ $single_action_actor -eq 1 ]]; then
+    FLAGS="$FLAGS --single_action_actor"
 fi
 
 if [[ $big_net -eq 1 ]]; then
