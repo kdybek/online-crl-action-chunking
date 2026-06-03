@@ -1,6 +1,7 @@
 import time
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 from brax import envs
 from brax.training import acting
@@ -55,7 +56,8 @@ class Evaluator(acting.Evaluator):
 
         # We check in how many env there was at least one step where there was success
         if "success" in eval_metrics.episode_metrics:
-            metrics["eval/episode_success_any"] = np.mean(eval_metrics.episode_metrics["success"] > 0.0)
+            metrics["eval/episode_success_any"] = np.mean(
+                eval_metrics.episode_metrics["success"] > 0.0)
 
         metrics["eval/avg_episode_length"] = np.mean(eval_metrics.episode_steps)
         metrics["eval/epoch_eval_time"] = epoch_eval_time
@@ -72,7 +74,8 @@ def generate_unroll(actor_step, training_state, env, env_state, unroll_length, e
     @jax.jit
     def f(carry, unused_t):
         state = carry
-        nstate, transition = actor_step(training_state, env, state, extra_fields=extra_fields)
+        nstate, transition = actor_step(
+            training_state, env, state, extra_fields=extra_fields)
         return nstate, transition
 
     final_state, data = jax.lax.scan(f, env_state, (), length=unroll_length)
@@ -85,18 +88,33 @@ def generate_chunked_unroll(get_actions, action_step, receding_horizon, training
     @jax.jit
     def f(carry, unused_t):
         (state, chunk_idx, actions) = carry
-        actions = jax.lax.cond(
-            chunk_idx == 0,
-            lambda: get_actions(training_state.actor_state, state.obs),
-            lambda: actions,
+
+        new_actions = get_actions(training_state.actor_state, state.obs)
+
+        need_replan = chunk_idx == 0
+
+        actions = jnp.where(
+            need_replan[:, None, None],
+            new_actions,
+            actions
         )
-        action = actions[..., chunk_idx, :]
+
+        action = actions[jnp.arange(actions.shape[0]), chunk_idx, :]
+
         nstate, transition = action_step(action, env, state, extra_fields=extra_fields)
-        chunk_idx = (chunk_idx + 1) % receding_horizon
+
+        done = nstate.done
+
+        chunk_idx = jnp.where(done, 0, (chunk_idx + 1) % receding_horizon)
+
         return (nstate, chunk_idx, actions), transition
 
-    actions = get_actions(training_state.actor_state, env_state.obs)  # Not optimal, but should be fine for now.
-    (final_state, _, _), data = jax.lax.scan(f, (env_state, 0, actions), (), length=unroll_length)
+    B = env_state.obs.shape[0]
+
+    chunk_idx = jnp.zeros(B, dtype=jnp.int32)
+    actions = get_actions(training_state.actor_state, env_state.obs)
+    (final_state, _, _), data = jax.lax.scan(
+        f, (env_state, chunk_idx, actions), (), length=unroll_length)
     return final_state, data
 
 
@@ -150,7 +168,8 @@ class ActorEvaluator:
 
         available_metric_names = eval_metrics.episode_metrics.keys()
 
-        metric_names = [name for name in wanted_metric_names if name in available_metric_names]
+        metric_names = [
+            name for name in wanted_metric_names if name in available_metric_names]
 
         for fn, suffix in aggregating_fns:
             metrics.update(
@@ -166,7 +185,8 @@ class ActorEvaluator:
 
         # We check in how many env there was at least one step where there was success
         if "success" in eval_metrics.episode_metrics:
-            metrics["eval/episode_success_any"] = np.mean(eval_metrics.episode_metrics["success"] > 0.0)
+            metrics["eval/episode_success_any"] = np.mean(
+                eval_metrics.episode_metrics["success"] > 0.0)
 
         metrics["eval/avg_episode_length"] = np.mean(eval_metrics.episode_steps)
         metrics["eval/epoch_eval_time"] = epoch_eval_time
@@ -231,7 +251,8 @@ class ChunkedActorEvaluator:
 
         available_metric_names = eval_metrics.episode_metrics.keys()
 
-        metric_names = [name for name in wanted_metric_names if name in available_metric_names]
+        metric_names = [
+            name for name in wanted_metric_names if name in available_metric_names]
 
         for fn, suffix in aggregating_fns:
             metrics.update(
@@ -247,7 +268,8 @@ class ChunkedActorEvaluator:
 
         # We check in how many env there was at least one step where there was success
         if "success" in eval_metrics.episode_metrics:
-            metrics["episode_success_any"] = np.mean(eval_metrics.episode_metrics["success"] > 0.0)
+            metrics["episode_success_any"] = np.mean(
+                eval_metrics.episode_metrics["success"] > 0.0)
 
         metrics["avg_episode_length"] = np.mean(eval_metrics.episode_steps)
         metrics["epoch_eval_time"] = epoch_eval_time
@@ -255,11 +277,13 @@ class ChunkedActorEvaluator:
         self._eval_walltime = self._eval_walltime + epoch_eval_time
         metrics["walltime"] = self._eval_walltime
 
-        metrics_rh = {f"eval/rh{self._receding_horizon}/{key}": value for key, value in metrics.items()}
+        metrics_rh = {
+            f"eval/rh{self._receding_horizon}/{key}": value for key, value in metrics.items()}
         metrics_full_chunk = {}
 
         if self._full_chunk:
-            metrics_full_chunk = {f"eval/full_chunk/{key}": value for key, value in metrics.items()}
+            metrics_full_chunk = {
+                f"eval/full_chunk/{key}": value for key, value in metrics.items()}
 
         metrics_all = {**metrics_rh, **metrics_full_chunk}
 

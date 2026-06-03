@@ -427,20 +427,33 @@ class ACCRL:
             @jax.jit
             def f(carry, unused_t):
                 state, current_key, chunk_idx, actions, replan_len = carry
+
                 action_key, replan_key, noise_key, next_key = jax.random.split(current_key, 4)
 
-                actions = jax.lax.cond(
-                    chunk_idx == 0,
-                    lambda: get_actions(actor_state, state.obs, action_key),
-                    lambda: actions,
-                )
-                action = actions[..., chunk_idx, :]
+                need_replan = chunk_idx == 0
 
-                replan_len = jax.lax.cond(
-                    self.random_replanning and chunk_idx == 0,
-                    lambda: jax.random.randint(replan_key, (), 1, self.action_chunk_length + 1),
-                    lambda: replan_len,
+                new_actions = get_actions(actor_state, state.obs, action_key)
+
+                actions = jnp.where(
+                    need_replan[:, None, None],
+                    new_actions,
+                    actions,
                 )
+
+                new_replan_len = jax.random.randint(
+                    replan_key,
+                    shape=(actions.shape[0],),
+                    minval=1,
+                    maxval=self.action_chunk_length + 1,
+                )
+
+                replan_len = jnp.where(
+                    need_replan & self.random_replanning,
+                    new_replan_len,
+                    replan_len,
+                )
+
+                action = actions[jnp.arange(actions.shape[0]), chunk_idx]
 
                 noise = jax.lax.cond(
                     self.action_noise_std > 0.0,
@@ -450,14 +463,21 @@ class ACCRL:
                 action = jnp.clip(action + noise, -1.0, 1.0)
 
                 nstate, transition = action_step(action, train_env, state, extra_fields=("truncation", "traj_id"))
-                chunk_idx = (chunk_idx + 1) % replan_len
+
+                done = nstate.done
+
+                chunk_idx = jnp.where(done, 0, (chunk_idx + 1) % replan_len)
 
                 return (nstate, next_key, chunk_idx, actions, replan_len), transition
+
+            B = env_state.obs.shape[0]
+            chunk_idx = jnp.zeros((B,), dtype=jnp.int32)
+            replan_len = jnp.full((B,), self.action_chunk_length, dtype=jnp.int32)
 
             actions = get_actions(actor_state, env_state.obs, key)  # Not optimal, but should be fine for now.
             (env_state, _, _, _, _), data = jax.lax.scan(
                 f,
-                (env_state, key, 0, actions, self.action_chunk_length),
+                (env_state, key, chunk_idx, actions, replan_len),
                 (),
                 length=self.unroll_length
             )
