@@ -464,9 +464,7 @@ class ACCRL:
 
                 nstate, transition = action_step(action, train_env, state, extra_fields=("truncation", "traj_id"))
 
-                done = nstate.done
-
-                chunk_idx = jnp.where(done, 0, (chunk_idx + 1) % replan_len)
+                chunk_idx = (chunk_idx + 1) % replan_len
 
                 return (nstate, next_key, chunk_idx, actions, replan_len), transition
 

@@ -103,9 +103,7 @@ def generate_chunked_unroll(get_actions, action_step, receding_horizon, training
 
         nstate, transition = action_step(action, env, state, extra_fields=extra_fields)
 
-        done = nstate.done
-
-        chunk_idx = jnp.where(done, 0, (chunk_idx + 1) % receding_horizon)
+        chunk_idx = (chunk_idx + 1) % receding_horizon
 
         return (nstate, chunk_idx, actions), transition
 
