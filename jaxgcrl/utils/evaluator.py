@@ -111,10 +111,10 @@ def generate_chunked_unroll(get_actions, action_step, receding_horizon, training
 
     B = env_state.obs.shape[0]
 
-    chunk_idx = jnp.zeros(B, dtype=jnp.int32)
+    init_chunk_idx = jnp.zeros(B, dtype=jnp.int32)
     actions = get_actions(training_state.actor_state, env_state.obs)
     (final_state, _, _), data = jax.lax.scan(
-        f, (env_state, chunk_idx, actions), (), length=unroll_length)
+        f, (env_state, init_chunk_idx, actions), (), length=unroll_length)
     return final_state, data
 
 

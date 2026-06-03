@@ -471,13 +471,13 @@ class ACCRL:
                 return (nstate, next_key, chunk_idx, actions, replan_len), transition
 
             B = env_state.obs.shape[0]
-            chunk_idx = jnp.zeros((B,), dtype=jnp.int32)
-            replan_len = jnp.full((B,), self.action_chunk_length, dtype=jnp.int32)
+            init_chunk_idx = jnp.zeros((B,), dtype=jnp.int32)
+            init_replan_len = jnp.full((B,), self.action_chunk_length, dtype=jnp.int32)
 
             actions = get_actions(actor_state, env_state.obs, key)  # Not optimal, but should be fine for now.
             (env_state, _, _, _, _), data = jax.lax.scan(
                 f,
-                (env_state, key, chunk_idx, actions, replan_len),
+                (env_state, key, init_chunk_idx, actions, init_replan_len),
                 (),
                 length=self.unroll_length
             )
