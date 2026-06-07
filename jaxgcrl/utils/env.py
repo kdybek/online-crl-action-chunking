@@ -104,7 +104,7 @@ def create_env(env_name: str, backend: str = None, **kwargs) -> object:
             # Possible env_name = {'simple_u_maze', 'simple_big_maze', 'simple_hardest_maze'}
             env = SimpleMaze(backend=backend or "spring", maze_layout_name=env_name[7:])
     elif env_name == "cheetah":
-        env = Halfcheetah()
+        env = Halfcheetah(backend=backend or "spring")
     elif env_name == "pusher_easy":
         env = Pusher(backend=backend or "generalized", kind="easy")
     elif env_name == "pusher_hard":

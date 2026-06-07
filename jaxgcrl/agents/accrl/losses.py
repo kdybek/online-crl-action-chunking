@@ -1,6 +1,10 @@
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
+import optax
+
+
+MAX_GRAD_NORM = 5.0
 
 
 def energy_fn(name, x, y):
@@ -74,9 +78,23 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
         transitions,
         key,
     )
+
+    actor_grad_norm = optax.global_norm(actor_grad)
+    actor_grad = optax.clip_by_global_norm(MAX_GRAD_NORM).update(
+        actor_grad,
+        None,
+    )[0]
+
     new_actor_state = training_state.actor_state.apply_gradients(grads=actor_grad)
 
     alpha_loss, alpha_grad = jax.value_and_grad(alpha_loss)(training_state.alpha_state.params, log_prob)
+
+    alpha_grad_norm = optax.global_norm(alpha_grad)
+    alpha_grad = optax.clip_by_global_norm(MAX_GRAD_NORM).update(
+        alpha_grad,
+        None,
+    )[0]
+
     new_alpha_state = training_state.alpha_state.apply_gradients(grads=alpha_grad)
 
     training_state = training_state.replace(actor_state=new_actor_state, alpha_state=new_alpha_state)
@@ -86,6 +104,10 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
         "actor_loss": actor_loss,
         "alpha_loss": alpha_loss,
         "log_alpha": training_state.alpha_state.params["log_alpha"],
+        "state_mean": jnp.mean(transitions.state),
+        "state_max_abs": jnp.max(jnp.abs(transitions.state)),
+        "actor_grad_norm": actor_grad_norm,
+        "alpha_grad_norm": alpha_grad_norm,
     }
 
     return training_state, metrics
@@ -125,6 +147,13 @@ def update_critic(config, networks, transitions, training_state, key):
     (loss, (logsumexp, I, correct, logits_pos, logits_neg)), grad = jax.value_and_grad(
         critic_loss, has_aux=True
     )(training_state.critic_state.params, transitions, key)
+
+    critic_grad_norm = optax.global_norm(grad)
+    grad = optax.clip_by_global_norm(MAX_GRAD_NORM).update(
+        grad,
+        None,
+    )[0]
+
     new_critic_state = training_state.critic_state.apply_gradients(grads=grad)
     training_state = training_state.replace(critic_state=new_critic_state)
 
@@ -134,6 +163,7 @@ def update_critic(config, networks, transitions, training_state, key):
         "logits_neg": logits_neg,
         "logsumexp": logsumexp.mean(),
         "critic_loss": loss,
+        "critic_grad_norm": critic_grad_norm,
     }
 
     return training_state, metrics
