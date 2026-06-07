@@ -581,7 +581,7 @@ class CRL:
                 make_policy,
                 training_state.actor_state.params,
                 unwrapped_env,
-                do_render=do_render,
+                do_render=False,
             )
 
             params = (
