@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import optax
 
 
-MAX_GRAD_NORM = 5.0
+MAX_GRAD_NORM = 500.0
 
 
 def energy_fn(name, x, y):
