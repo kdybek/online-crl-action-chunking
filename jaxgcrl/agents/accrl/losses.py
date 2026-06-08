@@ -52,7 +52,7 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
         obs_mean = jnp.mean(observation)
         obs_max_abs = jnp.max(jnp.abs(observation))
 
-        metrics = {
+        aux_metrics = {
             "means_mean": means_mean,
             "means_max_abs": means_max_abs,
             "log_stds_mean": log_stds_mean,
@@ -81,14 +81,14 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
 
         actor_loss = jnp.mean(jnp.exp(log_alpha) * log_prob - qf_pi)
 
-        return actor_loss, log_prob, metrics
+        return actor_loss, (log_prob, aux_metrics)
 
     def alpha_loss(alpha_params, log_prob):
         alpha = jnp.exp(alpha_params["log_alpha"])
         alpha_loss = alpha * jnp.mean(jax.lax.stop_gradient(-log_prob - config["target_entropy"]))
         return jnp.mean(alpha_loss)
 
-    (actor_loss, log_prob, aux_metrics), actor_grad = jax.value_and_grad(actor_loss, has_aux=True)(
+    (actor_loss, (log_prob, aux_metrics)), actor_grad = jax.value_and_grad(actor_loss, has_aux=True)(
         training_state.actor_state.params,
         training_state.critic_state.params,
         training_state.alpha_state.params["log_alpha"],
@@ -121,8 +121,6 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
         "actor_loss": actor_loss,
         "alpha_loss": alpha_loss,
         "log_alpha": training_state.alpha_state.params["log_alpha"],
-        "state_mean": jnp.mean(transitions.state),
-        "state_max_abs": jnp.max(jnp.abs(transitions.state)),
         "actor_grad_norm": actor_grad_norm,
         "alpha_grad_norm": alpha_grad_norm,
     }
