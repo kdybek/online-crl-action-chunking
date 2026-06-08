@@ -12,6 +12,7 @@
 
 #SBATCH --output=logs/%x_%A_%a.out
 #SBATCH --error=logs/%x_%A_%a.err
+
 unset LD_LIBRARY_PATH
 
 ml Python/3.11.5
@@ -29,7 +30,6 @@ env=""
 group=""
 random_replanning=0
 action_shuffling=0
-big_net=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -47,10 +47,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --action_shuffling)
       action_shuffling=1
-      shift
-      ;;
-    --big_net)
-      big_net=1
       shift
       ;;
     *)
@@ -71,6 +67,11 @@ if [[ -z "$group" ]]; then
 fi
 
 FLAGS="--num_evals 64 \
+  --total_env_steps 100000000 \
+  --batch_size 512 \
+  --n_hidden 4 \
+  --use_ln \
+  --backend mjx \
   --num_envs 512 \
   --num_eval_envs 512 \
   --discounting 0.99 \
@@ -89,12 +90,6 @@ fi
 
 if [[ $action_shuffling -eq 1 ]]; then
     FLAGS="$FLAGS --action_shuffling"
-fi
-
-if [[ $big_net -eq 1 ]]; then
-    FLAGS="$FLAGS --total_env_steps 100000000 --batch_size 512 --n_hidden 8 --use_ln"
-else
-    FLAGS="$FLAGS --total_env_steps 60000000 --batch_size 256 --n_hidden 2"
 fi
 
 seeds=(0 1 2 3 4)
