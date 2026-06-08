@@ -44,6 +44,23 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
         observation = jnp.concatenate([state, goal], axis=1)
 
         means, log_stds = networks["actor"].apply(actor_params, observation)
+
+        means_mean = jnp.mean(means)
+        means_max_abs = jnp.max(jnp.abs(means))
+        log_stds_mean = jnp.mean(log_stds)
+        log_stds_max_abs = jnp.max(jnp.abs(log_stds))
+        obs_mean = jnp.mean(observation)
+        obs_max_abs = jnp.max(jnp.abs(observation))
+
+        metrics = {
+            "means_mean": means_mean,
+            "means_max_abs": means_max_abs,
+            "log_stds_mean": log_stds_mean,
+            "log_stds_max_abs": log_stds_max_abs,
+            "obs_mean": obs_mean,
+            "obs_max_abs": obs_max_abs,
+        }
+
         means = jnp.reshape(means, (means.shape[0], -1))
         log_stds = jnp.reshape(log_stds, (log_stds.shape[0], -1))
         stds = jnp.exp(log_stds)
@@ -64,14 +81,14 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
 
         actor_loss = jnp.mean(jnp.exp(log_alpha) * log_prob - qf_pi)
 
-        return actor_loss, log_prob
+        return actor_loss, log_prob, metrics
 
     def alpha_loss(alpha_params, log_prob):
         alpha = jnp.exp(alpha_params["log_alpha"])
         alpha_loss = alpha * jnp.mean(jax.lax.stop_gradient(-log_prob - config["target_entropy"]))
         return jnp.mean(alpha_loss)
 
-    (actor_loss, log_prob), actor_grad = jax.value_and_grad(actor_loss, has_aux=True)(
+    (actor_loss, log_prob, aux_metrics), actor_grad = jax.value_and_grad(actor_loss, has_aux=True)(
         training_state.actor_state.params,
         training_state.critic_state.params,
         training_state.alpha_state.params["log_alpha"],
@@ -109,6 +126,8 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
         "actor_grad_norm": actor_grad_norm,
         "alpha_grad_norm": alpha_grad_norm,
     }
+
+    metrics.update(aux_metrics)
 
     return training_state, metrics
 
