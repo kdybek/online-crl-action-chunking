@@ -128,7 +128,7 @@ def update_critic(config, networks, transitions, training_state, key):
         critic_loss = contrastive_loss_fn(config["contrastive_loss_fn"], logits)
 
         # logsumexp regularisation
-        logsumexp = jax.nn.logsumexp(logits + 1e-6, axis=1)
+        logsumexp = jax.nn.logsumexp(logits, axis=1)
         critic_loss += config["logsumexp_penalty_coeff"] * jnp.mean(logsumexp**2)
 
         I = jnp.eye(logits.shape[0])
