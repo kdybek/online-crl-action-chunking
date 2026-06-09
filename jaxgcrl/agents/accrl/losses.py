@@ -33,14 +33,6 @@ def contrastive_loss_fn(name, logits):
     return critic_loss
 
 
-def gaussian_log_prob_from_log_std(x, mean, log_std):
-    return -0.5 * (
-        ((x - mean) ** 2) * jnp.exp(-2 * log_std)
-        + 2 * log_std
-        + jnp.log(2 * jnp.pi)
-    )
-
-
 def update_actor_and_alpha(config, networks, transitions, training_state, key):
     def actor_loss(actor_params, critic_params, log_alpha, transitions, key):
         state = transitions.state
@@ -55,7 +47,7 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
         stds = jnp.exp(log_stds)
         x_ts = means + stds * jax.random.normal(key, shape=means.shape, dtype=means.dtype)
         action = nn.tanh(x_ts)
-        log_prob = gaussian_log_prob_from_log_std(x_ts, means, log_stds)
+        log_prob = jax.scipy.stats.norm.logpdf(x_ts, loc=means, scale=stds)
         log_prob -= 2 * (jnp.log(2.0) - x_ts - nn.softplus(-2.0 * x_ts))
         log_prob = log_prob.sum(-1)  # dimension = B
 
