@@ -71,7 +71,6 @@ FLAGS="--num_evals 64 \
   --batch_size 512 \
   --n_hidden 4 \
   --use_ln \
-  --backend mjx \
   --num_envs 512 \
   --num_eval_envs 512 \
   --discounting 0.99 \
@@ -79,8 +78,8 @@ FLAGS="--num_evals 64 \
   --unroll_length 60 \
   --min_replay_size 1000 \
   --max_replay_size 10000 \
-  --contrastive_loss_fn sym_infonce \
-  --energy_fn l2 \
+  --contrastive_loss_fn fwd_infonce \
+  --energy_fn norm \
   --train_step_multiplier 1 \
   --log_wandb"
 
