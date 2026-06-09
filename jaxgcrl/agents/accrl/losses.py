@@ -65,8 +65,8 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
         return actor_loss, log_prob
 
     def alpha_loss(alpha_params, log_prob):
-        alpha = jnp.exp(alpha_params["log_alpha"])
-        alpha_loss = alpha * jnp.mean(jax.lax.stop_gradient(-log_prob - config["target_entropy"]))
+        # alpha = jnp.exp(alpha_params["log_alpha"])
+        alpha_loss = -alpha_params["log_alpha"] * jnp.mean(jax.lax.stop_gradient(log_prob + config["target_entropy"]))
         return jnp.mean(alpha_loss)
 
     (actor_loss, log_prob), actor_grad = jax.value_and_grad(actor_loss, has_aux=True)(
