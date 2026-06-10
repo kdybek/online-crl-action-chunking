@@ -67,10 +67,9 @@ if [[ -z "$group" ]]; then
 fi
 
 FLAGS="--num_evals 64 \
-  --total_env_steps 100000000 \
+  --total_env_steps 60000000 \
   --batch_size 512 \
-  --n_hidden 4 \
-  --use_ln \
+  --n_hidden 2 \
   --num_envs 512 \
   --num_eval_envs 512 \
   --discounting 0.99 \
