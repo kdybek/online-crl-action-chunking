@@ -222,6 +222,7 @@ class ACCRL:
 
     random_replanning: bool = False
     action_shuffling: bool = False
+    experience_replan_length: int = -1
 
     def check_config(self, config):
         """
@@ -470,7 +471,8 @@ class ACCRL:
 
             B = env_state.obs.shape[0]
             init_chunk_idx = jnp.zeros((B,), dtype=jnp.int32)
-            init_replan_len = jnp.full((B,), self.action_chunk_length, dtype=jnp.int32)
+            exp_replan_len = self.experience_replan_length if self.experience_replan_length > 0 else self.action_chunk_length
+            init_replan_len = jnp.full((B,), exp_replan_len, dtype=jnp.int32)
 
             actions = get_actions(actor_state, env_state.obs, key)  # Not optimal, but should be fine for now.
             (env_state, _, _, _, _), data = jax.lax.scan(
