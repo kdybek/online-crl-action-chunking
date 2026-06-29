@@ -224,6 +224,8 @@ class ACCRL:
     action_shuffling: bool = False
     experience_replan_length: int = -1
 
+    causal_actor_loss: bool = False
+
     def check_config(self, config):
         """
         episode_length: the maximum length of an episode
@@ -532,7 +534,7 @@ class ACCRL:
             )
 
             training_state, actor_metrics = update_actor_and_alpha(
-                context, networks, transitions, training_state, actor_key
+                context, networks, transitions, training_state, actor_key, self.causal_actor_loss
             )
             training_state, critic_metrics = update_critic(
                 context, networks, transitions, training_state, critic_key
@@ -754,7 +756,7 @@ class ACCRL:
                 make_policy,
                 training_state.actor_state.params,
                 unwrapped_env,
-                do_render=do_render,
+                do_render=False,
             )
 
             params = (

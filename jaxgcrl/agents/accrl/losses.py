@@ -34,7 +34,7 @@ def contrastive_loss_fn(name, logits):
     return critic_loss
 
 
-def update_actor_and_alpha(config, networks, transitions, training_state, key):
+def update_actor_and_alpha(config, networks, transitions, training_state, key, causal_actor_loss=False):
     def get_aux_metrics_2(actor_params, transitions):
         future_state = transitions.extras["future_state"]
         goal = future_state[:, config["goal_indices"]]
@@ -74,6 +74,8 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
         observation = jnp.concatenate([state, goal], axis=1)
 
         means, log_stds = networks["actor"].apply(actor_params, observation)
+        og_shape = means.shape
+        og_ndim = means.ndim
 
         means = jnp.reshape(means, (means.shape[0], -1))
         log_stds = jnp.reshape(log_stds, (log_stds.shape[0], -1))
@@ -89,11 +91,28 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
             critic_params["sa_encoder"],
             critic_params["g_encoder"],
         )
-        sa_repr = networks["sa_encoder"].apply(
-            sa_encoder_params, jnp.concatenate([state, action], axis=-1))
+
         g_repr = networks["g_encoder"].apply(g_encoder_params, goal)
 
-        qf_pi = energy_fn(config["energy_fn"], sa_repr, g_repr)
+        if causal_actor_loss and og_ndim > 2:
+            action_chunks = jnp.reshape(action, og_shape)
+            chunk_len = action_chunks.shape[1]
+            qf_pi_sum = 0.0
+            for i in range(chunk_len):
+                actions_before = jax.lax.stop_gradient(action_chunks[:, :i, :])
+                action_itself = action_chunks[:, i:i+1, :]
+                zeros_after = jnp.zeros_like(action_chunks[:, i+1:, :])
+                action_aux = jnp.concatenate([actions_before, action_itself, zeros_after], axis=1)
+                action_aux = jnp.reshape(action_aux, (action_aux.shape[0], -1))
+                sa_repr = networks["sa_encoder"].apply(
+                        sa_encoder_params, jnp.concatenate([state, action_aux], axis=-1))
+                qf_pi_sum += energy_fn(config["energy_fn"], sa_repr, g_repr)
+            qf_pi = qf_pi_sum / chunk_len
+        else:
+            sa_repr = networks["sa_encoder"].apply(
+                sa_encoder_params, jnp.concatenate([state, action], axis=-1))
+
+            qf_pi = energy_fn(config["energy_fn"], sa_repr, g_repr)
 
         actor_loss = jnp.mean(jnp.exp(log_alpha) * log_prob - qf_pi)
 
