@@ -24,7 +24,8 @@ def contrastive_loss_fn(name, logits):
         critic_loss = -jnp.mean(jnp.diag(logits) - jax.nn.logsumexp(logits, axis=0))
     elif name == "sym_infonce":
         critic_loss = -jnp.mean(
-            2 * jnp.diag(logits) - jax.nn.logsumexp(logits, axis=1) - jax.nn.logsumexp(logits, axis=0)
+            2 * jnp.diag(logits) - jax.nn.logsumexp(logits, axis=1) -
+            jax.nn.logsumexp(logits, axis=0)
         )
     elif name == "binary_nce":
         critic_loss = -jnp.mean(jax.nn.sigmoid(logits))
@@ -34,6 +35,38 @@ def contrastive_loss_fn(name, logits):
 
 
 def update_actor_and_alpha(config, networks, transitions, training_state, key):
+    def get_aux_metrics_2(actor_params, transitions):
+        future_state = transitions.extras["future_state"]
+        goal = future_state[:, config["goal_indices"]]
+
+        def aux_loss(state):
+            observation = jnp.concatenate([state, goal], axis=1)
+            means, _ = networks["actor"].apply(actor_params, observation)
+            if means.ndim > 2:
+                first_mean = means[:, 0, :]
+            else:
+                first_mean = means
+
+            loss = jnp.mean(jnp.sum(first_mean, axis=-1))
+            action_magnitude = jnp.mean(jnp.linalg.norm(first_mean, axis=-1))
+
+            return loss, action_magnitude
+
+        state = transitions.state
+
+        (loss, mean_magnitude), grad_state = jax.value_and_grad(
+            aux_loss, has_aux=True
+        )(state)
+
+        grad_norm = jnp.linalg.norm(grad_state)
+
+        aux_metrics_2 = {
+            "first_action_magnitude": mean_magnitude,
+            "first_action_grad_wrt_state_norm": grad_norm,
+        }
+
+        return aux_metrics_2
+
     def actor_loss(actor_params, critic_params, log_alpha, transitions, key):
         state = transitions.state
         future_state = transitions.extras["future_state"]
@@ -45,7 +78,8 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
         means = jnp.reshape(means, (means.shape[0], -1))
         log_stds = jnp.reshape(log_stds, (log_stds.shape[0], -1))
         stds = jnp.exp(log_stds)
-        x_ts = means + stds * jax.random.normal(key, shape=means.shape, dtype=means.dtype)
+        x_ts = means + stds * \
+            jax.random.normal(key, shape=means.shape, dtype=means.dtype)
         action = nn.tanh(x_ts)
         log_prob = jax.scipy.stats.norm.logpdf(x_ts, loc=means, scale=stds)
         log_prob -= 2 * (jnp.log(2.0) - x_ts - nn.softplus(-2.0 * x_ts))
@@ -55,7 +89,8 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
             critic_params["sa_encoder"],
             critic_params["g_encoder"],
         )
-        sa_repr = networks["sa_encoder"].apply(sa_encoder_params, jnp.concatenate([state, action], axis=-1))
+        sa_repr = networks["sa_encoder"].apply(
+            sa_encoder_params, jnp.concatenate([state, action], axis=-1))
         g_repr = networks["g_encoder"].apply(g_encoder_params, goal)
 
         qf_pi = energy_fn(config["energy_fn"], sa_repr, g_repr)
@@ -73,7 +108,8 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
 
     def alpha_loss(alpha_params, log_prob):
         alpha = jnp.exp(alpha_params["log_alpha"])
-        alpha_loss = -alpha * jnp.mean(jax.lax.stop_gradient(log_prob + config["target_entropy"]))
+        alpha_loss = -alpha * \
+            jnp.mean(jax.lax.stop_gradient(log_prob + config["target_entropy"]))
         return jnp.mean(alpha_loss)
 
     (actor_loss, (log_prob, aux_metrics)), actor_grad = jax.value_and_grad(actor_loss, has_aux=True)(
@@ -83,16 +119,19 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
         transitions,
         key,
     )
+    aux_metrics_2 = get_aux_metrics_2(training_state.actor_state.params, transitions)
 
     actor_grad_norm = optax.global_norm(actor_grad)
     new_actor_state = training_state.actor_state.apply_gradients(grads=actor_grad)
 
-    alpha_loss, alpha_grad = jax.value_and_grad(alpha_loss)(training_state.alpha_state.params, log_prob)
+    alpha_loss, alpha_grad = jax.value_and_grad(alpha_loss)(
+        training_state.alpha_state.params, log_prob)
 
     alpha_grad_norm = optax.global_norm(alpha_grad)
     new_alpha_state = training_state.alpha_state.apply_gradients(grads=alpha_grad)
 
-    training_state = training_state.replace(actor_state=new_actor_state, alpha_state=new_alpha_state)
+    training_state = training_state.replace(
+        actor_state=new_actor_state, alpha_state=new_alpha_state)
 
     metrics = {
         "entropy": -log_prob,
@@ -103,6 +142,7 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
         "alpha_grad_norm": alpha_grad_norm,
     }
     metrics.update(aux_metrics)
+    metrics.update(aux_metrics_2)
 
     return training_state, metrics
 
@@ -118,7 +158,8 @@ def update_critic(config, networks, transitions, training_state, key):
         goal = transitions.goal
         action = transitions.action
 
-        sa_repr = networks["sa_encoder"].apply(sa_encoder_params, jnp.concatenate([state, action], axis=-1))
+        sa_repr = networks["sa_encoder"].apply(
+            sa_encoder_params, jnp.concatenate([state, action], axis=-1))
         g_repr = networks["g_encoder"].apply(
             g_encoder_params, goal
         )
@@ -181,7 +222,8 @@ def crl_action_sensitivity_metrics(
     goal = jnp.reshape(goal, (-1, goal.shape[-1]))
 
     batch_dim = state.shape[0]
-    inds = jax.random.choice(ind_key, batch_dim, shape=(n_state_samples,), replace=False)
+    inds = jax.random.choice(ind_key, batch_dim, shape=(
+        n_state_samples,), replace=False)
     state = state[inds]  # (n_state_samples, state_dim)
     goal = goal[inds]  # (n_state_samples, goal_dim)
 
@@ -189,7 +231,8 @@ def crl_action_sensitivity_metrics(
     goal = jnp.repeat(goal[None, ...], n_action_samples, axis=0)
 
     action_dim = crl_transitions.action.shape[-1]
-    random_actions = jax.random.uniform(action_key, shape=(n_action_samples, action_dim), minval=-1.0, maxval=1.0)
+    random_actions = jax.random.uniform(action_key, shape=(
+        n_action_samples, action_dim), minval=-1.0, maxval=1.0)
     random_actions = jnp.repeat(random_actions[:, None, :], n_state_samples, axis=1)
 
     state_action = jnp.concatenate([state, random_actions], axis=-1)
@@ -202,7 +245,8 @@ def crl_action_sensitivity_metrics(
     sa_repr = networks["sa_encoder"].apply(sa_encoder_params, state_action)
     g_repr = networks["g_encoder"].apply(g_encoder_params, goal)
 
-    q_values = energy_fn(energy_fn_name, sa_repr, g_repr)  # (n_action_samples, n_state_samples)
+    # (n_action_samples, n_state_samples)
+    q_values = energy_fn(energy_fn_name, sa_repr, g_repr)
 
     var_q = jnp.mean(jnp.var(q_values, axis=0))
     mean_q = jnp.mean(q_values)

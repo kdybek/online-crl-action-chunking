@@ -754,7 +754,7 @@ class ACCRL:
                 make_policy,
                 training_state.actor_state.params,
                 unwrapped_env,
-                do_render=False,
+                do_render=do_render,
             )
 
             params = (
