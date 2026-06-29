@@ -166,7 +166,7 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key, c
     return training_state, metrics
 
 
-def update_critic(config, networks, transitions, training_state, key):
+def update_critic(config, networks, transitions, training_state, key, causal_actor_loss=False):
     def critic_loss(critic_params, transitions, key):
         sa_encoder_params, g_encoder_params = (
             critic_params["sa_encoder"],
@@ -176,6 +176,19 @@ def update_critic(config, networks, transitions, training_state, key):
         state = transitions.state
         goal = transitions.goal
         action = transitions.action
+
+        if causal_actor_loss:  # Teach the critic to handle partial actions
+            batch_size = state.shape[0]
+            cutoff_key, key = jax.random.split(key)
+            action_chunk_length = config.get("action_chunk_length", 1)
+            action_chunks = jnp.reshape(action, (action.shape[0], action_chunk_length, -1))
+
+            cutoffs = jax.random.randint(cutoff_key, shape=(batch_size,), minval=1, maxval=action_chunk_length)
+            idx = jnp.arange(action_chunk_length)[None, :]
+            mask = idx < cutoffs[:, None]
+
+            action_chunks = jnp.where(mask[:, :, None], action_chunks, 0.0)
+            action = jnp.reshape(action_chunks, (action_chunks.shape[0], -1))
 
         sa_repr = networks["sa_encoder"].apply(
             sa_encoder_params, jnp.concatenate([state, action], axis=-1))

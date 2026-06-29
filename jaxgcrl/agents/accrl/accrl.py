@@ -537,7 +537,7 @@ class ACCRL:
                 context, networks, transitions, training_state, actor_key, self.causal_actor_loss
             )
             training_state, critic_metrics = update_critic(
-                context, networks, transitions, training_state, critic_key
+                context, networks, transitions, training_state, critic_key, self.causal_actor_loss
             )
             training_state = training_state.replace(gradient_steps=training_state.gradient_steps + 1)
 
