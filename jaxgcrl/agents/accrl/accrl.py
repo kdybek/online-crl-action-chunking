@@ -224,7 +224,7 @@ class ACCRL:
     action_shuffling: bool = False
     experience_replan_length: int = -1
 
-    causal_actor_loss: bool = False
+    action_grad_gamma: float = 0.0
 
     def check_config(self, config):
         """
@@ -534,10 +534,10 @@ class ACCRL:
             )
 
             training_state, actor_metrics = update_actor_and_alpha(
-                context, networks, transitions, training_state, actor_key, self.causal_actor_loss
+                context, networks, transitions, training_state, actor_key, self.action_grad_gamma
             )
             training_state, critic_metrics = update_critic(
-                context, networks, transitions, training_state, critic_key, self.causal_actor_loss
+                context, networks, transitions, training_state, critic_key
             )
             training_state = training_state.replace(gradient_steps=training_state.gradient_steps + 1)
 

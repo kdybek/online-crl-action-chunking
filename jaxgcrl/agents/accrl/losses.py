@@ -34,7 +34,7 @@ def contrastive_loss_fn(name, logits):
     return critic_loss
 
 
-def update_actor_and_alpha(config, networks, transitions, training_state, key, causal_actor_loss=False):
+def update_actor_and_alpha(config, networks, transitions, training_state, key, action_grad_gamma=0.0):
     def get_aux_metrics_2(actor_params, transitions):
         future_state = transitions.extras["future_state"]
         goal = future_state[:, config["goal_indices"]]
@@ -94,20 +94,21 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key, c
 
         g_repr = networks["g_encoder"].apply(g_encoder_params, goal)
 
-        if causal_actor_loss and og_ndim > 2:
+        if action_grad_gamma > 0.0 and og_ndim > 2:
             action_chunks = jnp.reshape(action, og_shape)
             chunk_len = action_chunks.shape[1]
-            qf_pi_sum = 0.0
+            qf_pi = 0.0
+            gamma = 1.0
             for i in range(chunk_len):
                 actions_before = jax.lax.stop_gradient(action_chunks[:, :i, :])
                 action_itself = action_chunks[:, i:i+1, :]
-                zeros_after = jnp.zeros_like(action_chunks[:, i+1:, :])
-                action_aux = jnp.concatenate([actions_before, action_itself, zeros_after], axis=1)
+                actions_after = jax.lax.stop_gradient(action_chunks[:, i+1:, :])
+                action_aux = jnp.concatenate([actions_before, action_itself, actions_after], axis=1)
                 action_aux = jnp.reshape(action_aux, (action_aux.shape[0], -1))
                 sa_repr = networks["sa_encoder"].apply(
                         sa_encoder_params, jnp.concatenate([state, action_aux], axis=-1))
-                qf_pi_sum += energy_fn(config["energy_fn"], sa_repr, g_repr)
-            qf_pi = qf_pi_sum / chunk_len
+                qf_pi += gamma * energy_fn(config["energy_fn"], sa_repr, g_repr)
+                gamma *= action_grad_gamma
         else:
             sa_repr = networks["sa_encoder"].apply(
                 sa_encoder_params, jnp.concatenate([state, action], axis=-1))
@@ -166,7 +167,7 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key, c
     return training_state, metrics
 
 
-def update_critic(config, networks, transitions, training_state, key, causal_actor_loss=False):
+def update_critic(config, networks, transitions, training_state, key):
     def critic_loss(critic_params, transitions, key):
         sa_encoder_params, g_encoder_params = (
             critic_params["sa_encoder"],
@@ -176,19 +177,6 @@ def update_critic(config, networks, transitions, training_state, key, causal_act
         state = transitions.state
         goal = transitions.goal
         action = transitions.action
-
-        if causal_actor_loss:  # Teach the critic to handle partial actions
-            batch_size = state.shape[0]
-            cutoff_key, key = jax.random.split(key)
-            action_chunk_length = config.get("action_chunk_length", 1)
-            action_chunks = jnp.reshape(action, (action.shape[0], action_chunk_length, -1))
-
-            cutoffs = jax.random.randint(cutoff_key, shape=(batch_size,), minval=1, maxval=action_chunk_length)
-            idx = jnp.arange(action_chunk_length)[None, :]
-            mask = idx < cutoffs[:, None]
-
-            action_chunks = jnp.where(mask[:, :, None], action_chunks, 0.0)
-            action = jnp.reshape(action_chunks, (action_chunks.shape[0], -1))
 
         sa_repr = networks["sa_encoder"].apply(
             sa_encoder_params, jnp.concatenate([state, action], axis=-1))
