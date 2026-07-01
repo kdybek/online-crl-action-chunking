@@ -68,13 +68,13 @@ fi
 
 FLAGS="--num_evals 64 \
   --total_env_steps 60000000 \
-  --batch_size 512 \
+  --batch_size 256 \
   --n_hidden 2 \
   --num_envs 512 \
   --num_eval_envs 512 \
   --discounting 0.99 \
   --action_repeat 1 \
-  --unroll_length 60 \
+  --unroll_length 62 \
   --min_replay_size 1000 \
   --max_replay_size 10000 \
   --contrastive_loss_fn fwd_infonce \

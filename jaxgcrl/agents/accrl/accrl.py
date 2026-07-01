@@ -54,6 +54,7 @@ class CRLTransition(NamedTuple):
     state: jnp.ndarray
     goal: jnp.ndarray
     action: jnp.ndarray
+    valid: jnp.ndarray
     extras: jnp.ndarray = ()
 
 
@@ -129,6 +130,7 @@ def flatten_batch(buffer_config, transition, key):
     same_traj_mask = gathered_traj_ids == first_traj_ids  # (seq_len, action_chunk_length)
 
     mask = valid_mask & same_traj_mask  # (seq_len, action_chunk_length)
+    valid = jnp.all(mask, axis=-1)  # (seq_len,)
 
     gathered_actions = jnp.where(
         mask[..., None],
@@ -144,6 +146,7 @@ def flatten_batch(buffer_config, transition, key):
     )
 
     flat_action_chunk = jnp.reshape(gathered_actions, (seq_len, -1))[:-1]  # (seq_len-1, action_chunk_length * action_size)
+    valid = valid[:-1]  # (seq_len-1,)
 
     extras = {
         "policy_extras": {},
@@ -159,6 +162,7 @@ def flatten_batch(buffer_config, transition, key):
         state=state,
         goal=goal,
         action=flat_action_chunk,
+        valid=valid,
         extras=extras,
     )
 
@@ -203,7 +207,7 @@ class ACCRL:
 
     max_replay_size: int = 10000
     min_replay_size: int = 1000
-    unroll_length: int = 60
+    unroll_length: int = 62
     h_dim: int = 256
     n_hidden: int = 2
     skip_connections: int = 4
@@ -554,7 +558,7 @@ class ACCRL:
 
         @jax.jit
         def process_transitions(transitions, key):
-            sampling_key, permutation_key = jax.random.split(key)
+            sampling_key, permutation_key, sanitization_key = jax.random.split(key, 3)
             batch_keys = jax.random.split(sampling_key, transitions.observation.shape[0])
             crl_transitions = jax.vmap(flatten_batch, in_axes=(None, 0, 0))(
                 (self.discounting, state_size, train_env.goal_indices, self.action_chunk_length, self.action_shuffling),
@@ -563,6 +567,29 @@ class ACCRL:
             )
             crl_transitions = jax.tree_util.tree_map(
                 lambda x: jnp.reshape(x, (-1,) + x.shape[2:], order="F"), crl_transitions
+            )
+
+            valid = crl_transitions.valid
+            N = valid.shape[0]
+            idx = jnp.arange(N)
+            valid_idx = jnp.where(valid, idx, -1)  # replace invalid indices with -1
+            valid_idx = jnp.sort(valid_idx)[::-1]  # put invalid indices at the end
+            num_valid = jnp.maximum(jnp.sum(valid), 1)
+            cycle_idx = idx % num_valid
+            valid_idx = valid_idx[cycle_idx]
+
+            replacement_idx = jax.random.choice(
+                sanitization_key,
+                valid_idx,
+                shape=(N,),
+                replace=True
+            )
+
+            final_idx = jnp.where(valid, idx, replacement_idx)
+
+            crl_transitions = jax.tree_util.tree_map(
+                lambda x: x[final_idx],
+                crl_transitions
             )
 
             # permute transitions

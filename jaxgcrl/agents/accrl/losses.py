@@ -35,7 +35,7 @@ def contrastive_loss_fn(name, logits):
 
 
 def update_actor_and_alpha(config, networks, transitions, training_state, key, action_grad_gamma=0.0):
-    def get_aux_metrics_2(actor_params, transitions):
+    def get_aux_metrics(actor_params, transitions):
         future_state = transitions.extras["future_state"]
         goal = future_state[:, config["goal_indices"]]
         state = transitions.state
@@ -51,14 +51,14 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key, a
 
         jac, action_magnitudes = jax.jacrev(f, has_aux=True)(observation)
 
-        aux_metrics_2 = {}
+        aux_metrics = {}
         for i in range(action_magnitudes.shape[0]):
-            aux_metrics_2[f"action{i}/magnitude"] = action_magnitudes[i]
+            aux_metrics[f"action{i}/magnitude"] = action_magnitudes[i]
             action_jac = jac[i]  # shape = (action_dim, batch_size, observation_dim)
             grad_norm = jnp.mean(jnp.linalg.norm(action_jac, axis=-1))
-            aux_metrics_2[f"action{i}/grad_wrt_input_norm"] = grad_norm
+            aux_metrics[f"action{i}/grad_wrt_input_norm"] = grad_norm
 
-        return aux_metrics_2
+        return aux_metrics
 
     def actor_loss(actor_params, critic_params, log_alpha, transitions, key):
         state = transitions.state
@@ -110,14 +110,7 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key, a
 
         actor_loss = jnp.mean(jnp.exp(log_alpha) * log_prob - qf_pi)
 
-        qf_pi_mean = jnp.mean(qf_pi)
-        qf_pi_max_abs = jnp.max(jnp.abs(qf_pi))
-        aux_metrics = {
-            "qf_pi_mean": qf_pi_mean,
-            "qf_pi_max_abs": qf_pi_max_abs,
-        }
-
-        return actor_loss, (log_prob, aux_metrics)
+        return actor_loss, log_prob
 
     def alpha_loss(alpha_params, log_prob):
         alpha = jnp.exp(alpha_params["log_alpha"])
@@ -125,7 +118,7 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key, a
             jnp.mean(jax.lax.stop_gradient(log_prob + config["target_entropy"]))
         return jnp.mean(alpha_loss)
 
-    (actor_loss, (log_prob, aux_metrics)), actor_grad = jax.value_and_grad(actor_loss, has_aux=True)(
+    (actor_loss, log_prob), actor_grad = jax.value_and_grad(actor_loss, has_aux=True)(
         training_state.actor_state.params,
         training_state.critic_state.params,
         training_state.alpha_state.params["log_alpha"],
@@ -153,9 +146,8 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key, a
         "actor_grad_norm": actor_grad_norm,
         "alpha_grad_norm": alpha_grad_norm,
     }
-    # aux_metrics_2 = get_aux_metrics_2(training_state.actor_state.params, transitions)
-    metrics.update(aux_metrics)
-    # metrics.update(aux_metrics_2)
+    # aux_metrics = get_aux_metrics(training_state.actor_state.params, transitions)
+    # metrics.update(aux_metrics)
 
     return training_state, metrics
 
