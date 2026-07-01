@@ -433,6 +433,7 @@ class ACCRL:
 
                 action_key, replan_key, noise_key, next_key = jax.random.split(current_key, 4)
 
+                chunk_idx = jnp.where(state.info["is_first"], 0, chunk_idx)
                 need_replan = chunk_idx == 0
 
                 new_actions = get_actions(actor_state, state.obs, action_key)

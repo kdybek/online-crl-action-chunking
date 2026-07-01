@@ -52,7 +52,14 @@ class Reacher(PipelineEnv):
             "success": zero,
             "dist": zero,
         }
-        state = State(pipeline_state, obs, reward, done, metrics)
+        state = State(
+            pipeline_state,
+            obs,
+            reward,
+            done,
+            metrics,
+            info={"is_first": jnp.array(True)}
+        )
         return state
 
     def step(self, state: State, action: jax.Array) -> State:
@@ -72,7 +79,12 @@ class Reacher(PipelineEnv):
             reward = success
 
         state.metrics.update(reward_dist=reward_dist, success=success, dist=dist)
-        return state.replace(pipeline_state=pipeline_state, obs=obs, reward=reward)
+        return state.replace(
+            pipeline_state=pipeline_state,
+            obs=obs,
+            reward=reward,
+            info={**state.info, "is_first": jnp.array(False)}
+        )
 
     def _get_obs(self, pipeline_state: base.State) -> jax.Array:
         """Returns egocentric observation of target and arm body."""

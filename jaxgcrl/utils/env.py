@@ -338,7 +338,7 @@ def render(make_policy, params, env, exp_dir, exp_name, num_steps):
         elif actions.ndim == 2:
             action = actions[action_chunk_idx]
 
-        # action_chunk_idx = (action_chunk_idx + 1) % action_chunk_len
+        action_chunk_idx = (action_chunk_idx + 1) % action_chunk_len
 
         state = jit_env_step(state, action)
         if i % 1000 == 0:

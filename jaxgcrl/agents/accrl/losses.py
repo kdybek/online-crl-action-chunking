@@ -38,32 +38,25 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key, a
     def get_aux_metrics_2(actor_params, transitions):
         future_state = transitions.extras["future_state"]
         goal = future_state[:, config["goal_indices"]]
-
-        def aux_loss(state):
-            observation = jnp.concatenate([state, goal], axis=1)
-            means, _ = networks["actor"].apply(actor_params, observation)
-            if means.ndim > 2:
-                first_mean = means[:, 0, :]
-            else:
-                first_mean = means
-
-            loss = jnp.mean(jnp.sum(first_mean, axis=-1))
-            action_magnitude = jnp.mean(jnp.linalg.norm(first_mean, axis=-1))
-
-            return loss, action_magnitude
-
         state = transitions.state
+        observation = jnp.concatenate([state, goal], axis=1)
 
-        (loss, mean_magnitude), grad_state = jax.value_and_grad(
-            aux_loss, has_aux=True
-        )(state)
+        def f(input):
+            means, _ = networks["actor"].apply(actor_params, input)
+            action_magnitudes = jnp.linalg.norm(means, axis=-1)  # shape = (batch_size, action_chunk_len)
+            action_magnitudes = jnp.mean(action_magnitudes, axis=0)  # shape = (action_chunk_len,)
+            loss = jnp.mean(means, axis=0)  # shape = (action_chunk_len, action_dim)
 
-        grad_norm = jnp.linalg.norm(grad_state)
+            return loss, action_magnitudes
 
-        aux_metrics_2 = {
-            "first_action_magnitude": mean_magnitude,
-            "first_action_grad_wrt_state_norm": grad_norm,
-        }
+        jac, action_magnitudes = jax.jacrev(f, has_aux=True)(observation)
+
+        aux_metrics_2 = {}
+        for i in range(action_magnitudes.shape[0]):
+            aux_metrics_2[f"action{i}/magnitude"] = action_magnitudes[i]
+            action_jac = jac[i]  # shape = (action_dim, batch_size, observation_dim)
+            grad_norm = jnp.mean(jnp.linalg.norm(action_jac, axis=-1))
+            aux_metrics_2[f"action{i}/grad_wrt_input_norm"] = grad_norm
 
         return aux_metrics_2
 
@@ -139,7 +132,6 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key, a
         transitions,
         key,
     )
-    aux_metrics_2 = get_aux_metrics_2(training_state.actor_state.params, transitions)
 
     actor_grad_norm = optax.global_norm(actor_grad)
     new_actor_state = training_state.actor_state.apply_gradients(grads=actor_grad)
@@ -161,8 +153,9 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key, a
         "actor_grad_norm": actor_grad_norm,
         "alpha_grad_norm": alpha_grad_norm,
     }
+    # aux_metrics_2 = get_aux_metrics_2(training_state.actor_state.params, transitions)
     metrics.update(aux_metrics)
-    metrics.update(aux_metrics_2)
+    # metrics.update(aux_metrics_2)
 
     return training_state, metrics
 

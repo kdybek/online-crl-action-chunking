@@ -122,7 +122,14 @@ class Humanoid(PipelineEnv):
             "success_easy": zero,
         }
 
-        state = State(pipeline_state, obs, reward, done, metrics)
+        state = State(
+            pipeline_state,
+            obs,
+            reward,
+            done,
+            metrics,
+            info={"is_first": jnp.array(True)}
+        )
 
         return state
 
@@ -179,7 +186,13 @@ class Humanoid(PipelineEnv):
             success=success,
             success_easy=success_easy,
         )
-        return state.replace(pipeline_state=pipeline_state, obs=obs, reward=reward, done=done)
+        return state.replace(
+            pipeline_state=pipeline_state,
+            obs=obs,
+            reward=reward,
+            done=done,
+            info={**state.info, "is_first": jnp.array(False)}
+        )
 
     def _get_obs(self, pipeline_state: base.State, action: jax.Array) -> jax.Array:
         """Observes humanoid body position, velocities, and angles."""

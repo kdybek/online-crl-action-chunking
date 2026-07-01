@@ -91,6 +91,7 @@ def generate_chunked_unroll(get_actions, action_step, receding_horizon, training
 
         new_actions = get_actions(training_state.actor_state, state.obs)
 
+        chunk_idx = jnp.where(state.info["is_first"], 0, chunk_idx)
         need_replan = chunk_idx == 0
 
         actions = jnp.where(

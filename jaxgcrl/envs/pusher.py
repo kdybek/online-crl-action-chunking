@@ -86,7 +86,14 @@ class Pusher(PipelineEnv):
             "success_hard": zero,
         }
 
-        state = State(pipeline_state, obs, reward, done, metrics)
+        state = State(
+            pipeline_state,
+            obs,
+            reward,
+            done,
+            metrics,
+            info={"is_first": jnp.array(True)}
+        )
 
         return state
 
@@ -119,7 +126,12 @@ class Pusher(PipelineEnv):
             success=success,
             success_hard=jnp.array(obj_to_goal_dist < 0.05, dtype=float),
         )
-        return state.replace(pipeline_state=pipeline_state, obs=obs, reward=reward)
+        return state.replace(
+            pipeline_state=pipeline_state,
+            obs=obs,
+            reward=reward,
+            info={**state.info, "is_first": jnp.array(False)}
+        )
 
     def _get_obs(self, pipeline_state: base.State) -> jax.Array:
         """Observes pusher body position and velocities."""
