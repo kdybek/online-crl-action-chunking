@@ -572,8 +572,8 @@ class ACCRL:
             valid = crl_transitions.valid
             N = valid.shape[0]
             idx = jnp.arange(N)
-            valid_idx = jnp.where(valid, idx, -1)  # replace invalid indices with -1
-            valid_idx = jnp.sort(valid_idx)[::-1]  # put invalid indices at the end
+            valid_idx = jnp.where(valid, idx, 0)  # replace invalid indices with 0
+            valid_idx = jnp.sort(valid_idx)[::-1]  # put 0s at the end
             num_valid = jnp.maximum(jnp.sum(valid), 1)
             cycle_idx = idx % num_valid
             valid_idx = valid_idx[cycle_idx]
