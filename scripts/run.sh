@@ -68,7 +68,7 @@ fi
 
 FLAGS="--num_evals 64 \
   --total_env_steps 60000000 \
-  --batch_size 512 \
+  --batch_size 256 \
   --n_hidden 2 \
   --num_envs 512 \
   --num_eval_envs 512 \
