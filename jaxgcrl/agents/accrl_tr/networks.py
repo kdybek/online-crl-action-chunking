@@ -190,6 +190,16 @@ class MultiHeadAttentionRoPE(nn.Module):
 
         attn = attn / jnp.sqrt(self.head_dim)
 
+        # causal mask: allow attending only to current and previous tokens
+        mask = jnp.tril(jnp.ones((T, T), dtype=bool))
+
+        # broadcast to [B, H, T, T]
+        attn = jnp.where(
+            mask[None, None, :, :],
+            attn,
+            -1e10
+        )
+
         weights = nn.softmax(attn, axis=-1)
 
         out = jnp.matmul(weights, v)

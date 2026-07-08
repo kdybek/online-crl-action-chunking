@@ -23,7 +23,8 @@ def contrastive_loss_fn(name, logits):
         critic_loss = -jnp.mean(jnp.diag(logits) - jax.nn.logsumexp(logits, axis=0))
     elif name == "sym_infonce":
         critic_loss = -jnp.mean(
-            2 * jnp.diag(logits) - jax.nn.logsumexp(logits, axis=1) - jax.nn.logsumexp(logits, axis=0)
+            2 * jnp.diag(logits) - jax.nn.logsumexp(logits, axis=1) -
+            jax.nn.logsumexp(logits, axis=0)
         )
     elif name == "binary_nce":
         critic_loss = -jnp.mean(jax.nn.sigmoid(logits))
@@ -34,15 +35,15 @@ def contrastive_loss_fn(name, logits):
 
 def update_actor_and_alpha(config, networks, transitions, training_state, key):
     def actor_loss(actor_params, critic_params, log_alpha, transitions, key):
-        obs = transitions.observation  # expected_shape = self.batch_size, obs_size + goal_size
-        state = obs[:, : config["state_size"]]
+        state = transitions.state
         future_state = transitions.extras["future_state"]
         goal = future_state[:, config["goal_indices"]]
         observation = jnp.concatenate([state, goal], axis=1)
 
         means, log_stds = networks["actor"].apply(actor_params, observation)
         stds = jnp.exp(log_stds)
-        x_ts = means + stds * jax.random.normal(key, shape=means.shape, dtype=means.dtype)
+        x_ts = means + stds * \
+            jax.random.normal(key, shape=means.shape, dtype=means.dtype)
         action = nn.tanh(x_ts)
         log_prob = jax.scipy.stats.norm.logpdf(x_ts, loc=means, scale=stds)
         log_prob -= 2 * (jnp.log(2.0) - x_ts - nn.softplus(-2.0 * x_ts))
@@ -52,7 +53,8 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
             critic_params["sa_encoder"],
             critic_params["g_encoder"],
         )
-        sa_repr = networks["sa_encoder"].apply(sa_encoder_params, jnp.concatenate([state, action], axis=-1))
+        sa_repr = networks["sa_encoder"].apply(
+            sa_encoder_params, state, action[:, None, :])[:, -1, :]
         g_repr = networks["g_encoder"].apply(g_encoder_params, goal)
 
         qf_pi = energy_fn(config["energy_fn"], sa_repr, g_repr)
@@ -63,7 +65,8 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
 
     def alpha_loss(alpha_params, log_prob):
         alpha = jnp.exp(alpha_params["log_alpha"])
-        alpha_loss = alpha * jnp.mean(jax.lax.stop_gradient(-log_prob - config["target_entropy"]))
+        alpha_loss = alpha * \
+            jnp.mean(jax.lax.stop_gradient(-log_prob - config["target_entropy"]))
         return jnp.mean(alpha_loss)
 
     (actor_loss, log_prob), actor_grad = jax.value_and_grad(actor_loss, has_aux=True)(
@@ -75,10 +78,12 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
     )
     new_actor_state = training_state.actor_state.apply_gradients(grads=actor_grad)
 
-    alpha_loss, alpha_grad = jax.value_and_grad(alpha_loss)(training_state.alpha_state.params, log_prob)
+    alpha_loss, alpha_grad = jax.value_and_grad(alpha_loss)(
+        training_state.alpha_state.params, log_prob)
     new_alpha_state = training_state.alpha_state.apply_gradients(grads=alpha_grad)
 
-    training_state = training_state.replace(actor_state=new_actor_state, alpha_state=new_alpha_state)
+    training_state = training_state.replace(
+        actor_state=new_actor_state, alpha_state=new_alpha_state)
 
     metrics = {
         "entropy": -log_prob,
@@ -97,37 +102,56 @@ def update_critic(config, networks, transitions, training_state, key):
             critic_params["g_encoder"],
         )
 
-        state = transitions.observation[:, : config["state_size"]]
-        action = transitions.action
+        state = transitions.state
+        goal = transitions.goal
+        flat_actions = transitions.action
+        actions = flat_actions.reshape(flat_actions.shape[0], config["action_chunk_length"], -1)
 
-        sa_repr = networks["sa_encoder"].apply(sa_encoder_params, jnp.concatenate([state, action], axis=-1))
+        sa_reprs = networks["sa_encoder"].apply(
+            sa_encoder_params, state, actions)
         g_repr = networks["g_encoder"].apply(
-            g_encoder_params, transitions.observation[:, config["state_size"] :]
+            g_encoder_params, goal
         )
+        critic_loss_sum = 0.0
+        correct_sum = 0.0
+        logits_pos_sum = 0.0
+        logits_neg_sum = 0.0
 
         # InfoNCE
-        logits = energy_fn(config["energy_fn"], sa_repr[:, None, :], g_repr[None, :, :])
-        critic_loss = contrastive_loss_fn(config["contrastive_loss_fn"], logits)
+        for i in range(sa_reprs.shape[1]):
+            sa_repr = sa_reprs[:, i, :]
+            logits = energy_fn(config["energy_fn"], sa_repr[:, None, :], g_repr[None, :, :])
+            critic_loss = contrastive_loss_fn(config["contrastive_loss_fn"], logits)
 
-        # logsumexp regularisation
-        logsumexp = jax.nn.logsumexp(logits + 1e-6, axis=1)
-        critic_loss += config["logsumexp_penalty_coeff"] * jnp.mean(logsumexp**2)
+            # logsumexp regularisation
+            logsumexp = jax.nn.logsumexp(logits + 1e-6, axis=1)
+            critic_loss += config["logsumexp_penalty_coeff"] * jnp.mean(logsumexp**2)
 
-        I = jnp.eye(logits.shape[0])
-        correct = jnp.argmax(logits, axis=1) == jnp.argmax(I, axis=1)
-        logits_pos = jnp.sum(logits * I) / jnp.sum(I)
-        logits_neg = jnp.sum(logits * (1 - I)) / jnp.sum(1 - I)
+            I = jnp.eye(logits.shape[0])
+            correct = jnp.argmax(logits, axis=1) == jnp.argmax(I, axis=1)
+            logits_pos = jnp.sum(logits * I) / jnp.sum(I)
+            logits_neg = jnp.sum(logits * (1 - I)) / jnp.sum(1 - I)
 
-        return critic_loss, (logsumexp, I, correct, logits_pos, logits_neg)
+            critic_loss_sum += critic_loss
+            correct_sum += jnp.mean(correct)
+            logits_pos_sum += logits_pos
+            logits_neg_sum += logits_neg
 
-    (loss, (logsumexp, I, correct, logits_pos, logits_neg)), grad = jax.value_and_grad(
+        critic_loss = critic_loss_sum / sa_reprs.shape[1]
+        cat_acc = correct_sum / sa_reprs.shape[1]
+        logits_pos = logits_pos_sum / sa_reprs.shape[1]
+        logits_neg = logits_neg_sum / sa_reprs.shape[1]
+
+        return critic_loss, (logsumexp, I, cat_acc, logits_pos, logits_neg)
+
+    (loss, (logsumexp, I, cat_acc, logits_pos, logits_neg)), grad = jax.value_and_grad(
         critic_loss, has_aux=True
     )(training_state.critic_state.params, transitions, key)
     new_critic_state = training_state.critic_state.apply_gradients(grads=grad)
     training_state = training_state.replace(critic_state=new_critic_state)
 
     metrics = {
-        "categorical_accuracy": jnp.mean(correct),
+        "categorical_accuracy": cat_acc,
         "logits_pos": logits_pos,
         "logits_neg": logits_neg,
         "logsumexp": logsumexp.mean(),
