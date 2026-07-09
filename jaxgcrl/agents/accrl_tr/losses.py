@@ -54,7 +54,7 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
             critic_params["g_encoder"],
         )
         sa_repr = networks["sa_encoder"].apply(
-            sa_encoder_params, state, action[:, None, :])[:, -1, :]
+            sa_encoder_params, state, action, drop_intermediate=True)
         g_repr = networks["g_encoder"].apply(g_encoder_params, goal)
 
         qf_pi = energy_fn(config["energy_fn"], sa_repr, g_repr)
@@ -105,57 +105,66 @@ def update_critic(config, networks, transitions, training_state, key):
         state = transitions.state
         goal = transitions.goal
         flat_actions = transitions.action
-        actions = flat_actions.reshape(flat_actions.shape[0], config["action_chunk_length"], -1)
+        actions = flat_actions.reshape(
+            flat_actions.shape[0], config["action_chunk_length"], -1)
 
         sa_reprs = networks["sa_encoder"].apply(
             sa_encoder_params, state, actions)
         g_repr = networks["g_encoder"].apply(
             g_encoder_params, goal
         )
-        critic_loss_sum = 0.0
-        correct_sum = 0.0
-        logits_pos_sum = 0.0
-        logits_neg_sum = 0.0
 
-        # InfoNCE
-        for i in range(sa_reprs.shape[1]):
-            sa_repr = sa_reprs[:, i, :]
-            logits = energy_fn(config["energy_fn"], sa_repr[:, None, :], g_repr[None, :, :])
+        def loss_for_step(sa_repr):
+            logits = energy_fn(
+                config["energy_fn"],
+                sa_repr[:, None, :],
+                g_repr[None, :, :],
+            )
+
             critic_loss = contrastive_loss_fn(config["contrastive_loss_fn"], logits)
 
-            # logsumexp regularisation
             logsumexp = jax.nn.logsumexp(logits + 1e-6, axis=1)
-            critic_loss += config["logsumexp_penalty_coeff"] * jnp.mean(logsumexp**2)
+            critic_loss += (
+                config["logsumexp_penalty_coeff"] * jnp.mean(logsumexp**2)
+            )
 
             I = jnp.eye(logits.shape[0])
-            correct = jnp.argmax(logits, axis=1) == jnp.argmax(I, axis=1)
+            cat_acc = jnp.mean(jnp.argmax(logits, axis=1) ==
+                               jnp.arange(logits.shape[0]))
             logits_pos = jnp.sum(logits * I) / jnp.sum(I)
             logits_neg = jnp.sum(logits * (1 - I)) / jnp.sum(1 - I)
 
-            critic_loss_sum += critic_loss
-            correct_sum += jnp.mean(correct)
-            logits_pos_sum += logits_pos
-            logits_neg_sum += logits_neg
+            metrics = {
+                "logsumexp": logsumexp.mean(),
+                "categorical_accuracy": cat_acc,
+                "logits_pos": logits_pos,
+                "logits_neg": logits_neg,
+            }
 
-        critic_loss = critic_loss_sum / sa_reprs.shape[1]
-        cat_acc = correct_sum / sa_reprs.shape[1]
-        logits_pos = logits_pos_sum / sa_reprs.shape[1]
-        logits_neg = logits_neg_sum / sa_reprs.shape[1]
+            return critic_loss, metrics
 
-        return critic_loss, (logsumexp, I, cat_acc, logits_pos, logits_neg)
+        losses, metrics = jax.vmap(loss_for_step, in_axes=1, out_axes=0)(sa_reprs)
 
-    (loss, (logsumexp, I, cat_acc, logits_pos, logits_neg)), grad = jax.value_and_grad(
+        renamed_metrics = {}
+        for k, v in metrics.items():
+            for i, metric in enumerate(v):
+                if i == 0:
+                    name = f"{k}_state"
+                else:
+                    name = f"{k}_action_{i-1}"
+
+                renamed_metrics[name] = metric
+
+        critic_loss = losses.mean()
+
+        renamed_metrics["critic_loss"] = critic_loss
+
+        return critic_loss, renamed_metrics
+
+    (loss, metrics), grad = jax.value_and_grad(
         critic_loss, has_aux=True
     )(training_state.critic_state.params, transitions, key)
     new_critic_state = training_state.critic_state.apply_gradients(grads=grad)
     training_state = training_state.replace(critic_state=new_critic_state)
-
-    metrics = {
-        "categorical_accuracy": cat_acc,
-        "logits_pos": logits_pos,
-        "logits_neg": logits_neg,
-        "logsumexp": logsumexp.mean(),
-        "critic_loss": loss,
-    }
 
     return training_state, metrics

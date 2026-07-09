@@ -2,12 +2,12 @@ from typing import Literal, Optional, Union
 
 from flax.struct import dataclass
 
-from jaxgcrl.agents import CRL, ACCRL  # PPO, SAC, TD3 are not updated to new dependency versions
+from jaxgcrl.agents import CRL, ACCRL, ACCRL_TR  # PPO, SAC, TD3 are not updated to new dependency versions
 
 from .env import legal_envs
 
 # agent configurations
-AgentConfig = Union[CRL, ACCRL]  # PPO, SAC, TD3 are not updated to new dependency versions
+AgentConfig = Union[CRL, ACCRL, ACCRL_TR]  # PPO, SAC, TD3 are not updated to new dependency versions
 
 
 @dataclass

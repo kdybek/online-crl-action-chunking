@@ -52,11 +52,11 @@ class Encoder(nn.Module):
 
 class Actor(nn.Module):
     action_size: int
+    action_chunk_length: int
     network_width: int = 256
     network_depth: int = 4
     skip_connections: int = (
-        # 0 for no skip connections, >= 0 means the frequency of skip connections (every X layers)
-        0
+        0  # 0 for no skip connections, >= 0 means the frequency of skip connections (every X layers)
     )
     use_relu: bool = False
     use_ln: bool = False
@@ -66,9 +66,9 @@ class Actor(nn.Module):
     @nn.compact
     def __call__(self, x):
         if self.use_ln:
-            def normalize(x): return nn.LayerNorm()(x)
+            normalize = lambda x: nn.LayerNorm()(x)
         else:
-            def normalize(x): return x
+            normalize = lambda x: x
 
         if self.use_relu:
             activation = nn.relu
@@ -80,8 +80,7 @@ class Actor(nn.Module):
 
         logging.info("actor input shape: %s", x.shape)
         for i in range(self.network_depth):
-            x = nn.Dense(self.network_width, kernel_init=lecun_unfirom,
-                         bias_init=bias_init)(x)
+            x = nn.Dense(self.network_width, kernel_init=lecun_unfirom, bias_init=bias_init)(x)
             x = normalize(x)
             x = activation(x)
 
@@ -92,15 +91,17 @@ class Actor(nn.Module):
                     x = x + skip
                     skip = x
 
-        mean = nn.Dense(self.action_size, kernel_init=lecun_unfirom,
-                        bias_init=bias_init)(x)
-        log_std = nn.Dense(self.action_size, kernel_init=lecun_unfirom,
-                           bias_init=bias_init)(x)
+        action_chunk_size = self.action_size * self.action_chunk_length
+        mean = nn.Dense(action_chunk_size, kernel_init=lecun_unfirom, bias_init=bias_init)(x)
+        log_std = nn.Dense(action_chunk_size, kernel_init=lecun_unfirom, bias_init=bias_init)(x)
 
         log_std = nn.tanh(log_std)
         log_std = self.LOG_STD_MIN + 0.5 * (self.LOG_STD_MAX - self.LOG_STD_MIN) * (
             log_std + 1
         )  # From SpinUp / Denis Yarats
+
+        mean = mean.reshape(mean.shape[:-1] + (self.action_chunk_length, self.action_size))
+        log_std = log_std.reshape(log_std.shape[:-1] + (self.action_chunk_length, self.action_size))
 
         return mean, log_std
 
@@ -266,7 +267,7 @@ class TransformerCritic(nn.Module):
             for _ in range(self.num_layers)
         ]
 
-    def __call__(self, state, actions):
+    def __call__(self, state, actions, drop_intermediate=False):
         # state shape: [B, D_state]
         # actions shape: [B, T, D_action]
         state_repr = self.state_encoder(state)
@@ -274,6 +275,9 @@ class TransformerCritic(nn.Module):
         x = jnp.concatenate([state_repr[:, None, :], action_repr], axis=1)
         for layer in self.layers:
             x = layer(x)
+
+        if drop_intermediate:
+            x = x[:, -1, :]
 
         return x
 
