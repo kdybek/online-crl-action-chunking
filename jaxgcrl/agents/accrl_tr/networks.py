@@ -267,7 +267,7 @@ class TransformerCritic(nn.Module):
             for _ in range(self.num_layers)
         ]
 
-    def __call__(self, state, actions, drop_intermediate=False):
+    def __call__(self, state, actions):
         # state shape: [B, D_state]
         # actions shape: [B, T, D_action]
         state_repr = self.state_encoder(state)
@@ -275,9 +275,6 @@ class TransformerCritic(nn.Module):
         x = jnp.concatenate([state_repr[:, None, :], action_repr], axis=1)
         for layer in self.layers:
             x = layer(x)
-
-        if drop_intermediate:
-            x = x[:, -1, :]
 
         return x
 
