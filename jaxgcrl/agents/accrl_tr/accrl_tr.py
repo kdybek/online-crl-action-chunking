@@ -221,6 +221,8 @@ class ACCRL_TR:
     # layer norm
     use_ln: bool = False
 
+    num_attn_blocks: int = 1
+
     contrastive_loss_fn: Literal["fwd_infonce", "sym_infonce",
                                  "bwd_infonce", "binary_nce"] = "fwd_infonce"
     energy_fn: Literal["norm", "l2", "dot", "cosine"] = "norm"
@@ -327,6 +329,7 @@ class ACCRL_TR:
             state_size=state_size,
             action_size=action_size,
             repr_dim=self.repr_dim,
+            num_layers=self.num_attn_blocks,
         )
         sa_encoder_params = sa_encoder.init(
             sa_key,

@@ -59,7 +59,7 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
 
         qf_pi = energy_fn(config["energy_fn"], sa_repr, g_repr)
 
-        actor_loss = jnp.mean(jnp.exp(log_alpha) * log_prob - qf_pi)
+        actor_loss = jnp.mean(jnp.exp(log_alpha) * log_prob) - jnp.mean(qf_pi)
 
         return actor_loss, log_prob
 

@@ -150,13 +150,13 @@ class MultiHeadAttentionRoPE(nn.Module):
         self.head_dim = self.d_model // self.num_heads
 
         self.q_proj = nn.Dense(
-            self.d_model, kernel_init=nn.xavier_uniform(), bias_init=nn.initializers.zeros)
+            self.d_model, kernel_init=nn.initializers.xavier_uniform(), bias_init=nn.initializers.zeros)
         self.k_proj = nn.Dense(
-            self.d_model, kernel_init=nn.xavier_uniform(), bias_init=nn.initializers.zeros)
+            self.d_model, kernel_init=nn.initializers.xavier_uniform(), bias_init=nn.initializers.zeros)
         self.v_proj = nn.Dense(
-            self.d_model, kernel_init=nn.xavier_uniform(), bias_init=nn.initializers.zeros)
+            self.d_model, kernel_init=nn.initializers.xavier_uniform(), bias_init=nn.initializers.zeros)
         self.out_proj = nn.Dense(
-            self.d_model, kernel_init=nn.xavier_uniform(), bias_init=nn.initializers.zeros)
+            self.d_model, kernel_init=nn.initializers.xavier_uniform(), bias_init=nn.initializers.zeros)
 
     def __call__(self, x):
         B, T, _ = x.shape
@@ -227,10 +227,10 @@ class TransformerBlockRoPE(nn.Module):
         )
 
         self.mlp = nn.Sequential([
-            nn.Dense(self.mlp_dim, kernel_init=nn.xavier_uniform(),
+            nn.Dense(self.mlp_dim, kernel_init=nn.initializers.xavier_uniform(),
                      bias_init=nn.initializers.zeros),
             nn.swish,
-            nn.Dense(self.d_model, kernel_init=nn.xavier_uniform(),
+            nn.Dense(self.d_model, kernel_init=nn.initializers.xavier_uniform(),
                      bias_init=nn.initializers.zeros),
         ])
 
@@ -282,7 +282,7 @@ class TransformerCritic(nn.Module):
         return x
 
 
-def get_default_transformer_critic(state_dim, action_dim, repr_dim):
+def get_default_transformer_critic(state_size, action_size, repr_dim, num_layers):
     state_encoder = Encoder(repr_dim=repr_dim, network_width=256,
                             network_depth=4, skip_connections=4, use_relu=False, use_ln=True)
     action_encoder = Encoder(repr_dim=repr_dim, network_width=64,
@@ -293,5 +293,5 @@ def get_default_transformer_critic(state_dim, action_dim, repr_dim):
         d_model=repr_dim,
         num_heads=4,
         mlp_dim=256,
-        num_layers=2,
+        num_layers=num_layers,
     )
