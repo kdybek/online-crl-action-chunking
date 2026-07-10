@@ -44,7 +44,7 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
         stds = jnp.exp(log_stds)
         x_ts = means + stds * \
             jax.random.normal(key, shape=means.shape, dtype=means.dtype)
-        action = nn.tanh(x_ts)
+        actions = nn.tanh(x_ts)
         log_prob = jax.scipy.stats.norm.logpdf(x_ts, loc=means, scale=stds)
         log_prob -= 2 * (jnp.log(2.0) - x_ts - nn.softplus(-2.0 * x_ts))
         log_prob = log_prob.sum(-1)  # dimension = B
@@ -53,8 +53,7 @@ def update_actor_and_alpha(config, networks, transitions, training_state, key):
             critic_params["sa_encoder"],
             critic_params["g_encoder"],
         )
-        sa_repr = networks["sa_encoder"].apply(
-            sa_encoder_params, state, action).sum(axis=1)
+        sa_repr = networks["sa_encoder"].apply(sa_encoder_params, state, actions)[:, -1]
         g_repr = networks["g_encoder"].apply(g_encoder_params, goal)
 
         qf_pi = energy_fn(config["energy_fn"], sa_repr, g_repr)
@@ -113,7 +112,6 @@ def update_critic(config, networks, transitions, training_state, key):
         g_repr = networks["g_encoder"].apply(
             g_encoder_params, goal
         )
-        sa_reprs_cumsum = jnp.cumsum(sa_reprs, axis=1)
 
         def loss_for_step(sa_repr):
             logits = energy_fn(
@@ -144,7 +142,7 @@ def update_critic(config, networks, transitions, training_state, key):
 
             return critic_loss, metrics
 
-        losses, metrics = jax.vmap(loss_for_step, in_axes=1, out_axes=0)(sa_reprs_cumsum)
+        losses, metrics = jax.vmap(loss_for_step, in_axes=1, out_axes=0)(sa_reprs)
 
         renamed_metrics = {}
         for k, v in metrics.items():
