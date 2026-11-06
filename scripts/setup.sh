@@ -5,7 +5,7 @@
 #SBATCH --mem=32G
 #SBATCH --gres=gpu:1
 #SBATCH --time=10:00:00
-#SBATCH --account=plgcrlreason-gpu-gh200
+#SBATCH --account=plgcontrastivesft-gpu-gh200
 #SBATCH --partition=plgrid-gpu-gh200
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
