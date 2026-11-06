@@ -15,7 +15,7 @@ See _get_obs() and ArmEnvs._convert_action() for details.
 
 class ArmGrasp(ArmEnvs):
     def _get_xml_path(self):
-        return "envs/assets/panda_grasp.xml"
+        return "jaxgcrl/envs/assets/panda_grasp.xml"
 
     @property
     def action_size(self) -> int:
@@ -30,6 +30,7 @@ class ArmGrasp(ArmEnvs):
             [16, 17, 18, 19, 20, 21, 22]
         )  # Left and right fingertip positions, and fingertip distance
         self.completion_goal_indices = jnp.array([16, 17, 18, 19, 20, 21, 22])  # Identical
+        self.goal_indices_tuple = (16, 17, 18, 19, 20, 21, 22)  # Identical
         self.state_dim = 24
 
         self.arm_noise_scale = 0
