@@ -47,6 +47,7 @@ class ArmEnvs(PipelineEnv):
             "postexplore_timestep": jax.random.uniform(
                 subkey2
             ),  # Assumes timestep is normalized between 0 and 1
+            "is_first": jnp.array(True),
         }
 
         # Get components for state (observation, reward, metrics)
@@ -79,7 +80,7 @@ class ArmEnvs(PipelineEnv):
 
         reward = success
         done = 0.0
-        info = {**state.info, "timestep": timestep}
+        info = {**state.info, "timestep": timestep, "is_first": jnp.array(False)}
 
         new_state = state.replace(pipeline_state=pipeline_state, obs=obs, reward=reward, done=done, info=info)
 

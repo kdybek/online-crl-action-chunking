@@ -560,8 +560,9 @@ class ACCRL:
         def process_transitions(transitions, key):
             sampling_key, permutation_key, sanitization_key = jax.random.split(key, 3)
             batch_keys = jax.random.split(sampling_key, transitions.observation.shape[0])
+            goal_indices_tuple = getattr(train_env, "goal_indices_tuple", train_env.goal_indices)
             crl_transitions = jax.vmap(flatten_batch, in_axes=(None, 0, 0))(
-                (self.discounting, state_size, train_env.goal_indices, self.action_chunk_length, self.action_shuffling),
+                (self.discounting, state_size, goal_indices_tuple, self.action_chunk_length, self.action_shuffling),
                 transitions,
                 batch_keys,
             )

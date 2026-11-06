@@ -15,7 +15,7 @@ See _get_obs() and ArmEnvs._convert_action() for details.
 
 class ArmReach(ArmEnvs):
     def _get_xml_path(self):
-        return "envs/assets/panda_reach.xml"
+        return "jaxgcrl/envs/assets/panda_reach.xml"
 
     @property
     def action_size(self) -> int:
@@ -28,6 +28,7 @@ class ArmReach(ArmEnvs):
 
         self.goal_indices = jnp.array([7, 8, 9])  # End-effector position
         self.completion_goal_indices = jnp.array([7, 8, 9])  # Identical
+        self.goal_indices_tuple = (7, 8, 9)  # Identical
         self.state_dim = 13
         self.goal_reach_thresh = 0.1
 
