@@ -277,6 +277,7 @@ class ACCRL:
         assert num_training_steps_per_epoch > 0, (
             "total_env_steps too small for given num_envs and episode_length"
         )
+        assert self.action_chunk_length > 0, "action_chunk_length must be positive"
 
         logging.info(
             "num_prefill_env_steps: %d",
