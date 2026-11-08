@@ -189,6 +189,8 @@ def flatten_batch(config, env, transition: Transition, sample_key: PRNGKey) -> C
     # Gather actions
     gathered_actions = transition.action[idx_clipped]  # (seq_len, action_chunk_length, action_size)
     gathered_rewards = transition.reward[idx_clipped]  # (seq_len, action_chunk_length)
+    next_observation = transition.next_observation[idx_clipped[:, -1]]
+    discount = transition.discount[idx_clipped[:, -1]]
 
     # Gather traj_ids
     gathered_traj_ids = transition.extras["state_extras"]["traj_id"][idx_clipped]  # (seq_len, action_chunk_length)
@@ -220,10 +222,10 @@ def flatten_batch(config, env, transition: Transition, sample_key: PRNGKey) -> C
 
     return ChunkedTransition(
         observation=transition.observation,
-        next_observation=transition.next_observation,
+        next_observation=next_observation,
         action=flat_action_chunk,
         reward=discounted_rewards,
-        discount=transition.discount,
+        discount=discount,
         extras=extras,
         valid=valid,
     )
@@ -844,7 +846,6 @@ class ACSAC:
                     model.save_params(path, params)
 
                 # Run evals.
-                policy = make_policy((training_state.normalizer_params, training_state.policy_params))
                 eval_dummy_training_state = EvalDummyTrainingState(actor_state=_unpmap((training_state.normalizer_params, training_state.policy_params)))
                 metrics = evaluator.run_evaluation(
                     eval_dummy_training_state
