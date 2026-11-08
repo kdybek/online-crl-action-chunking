@@ -33,7 +33,7 @@ from brax.training.acme.types import NestedArray
 from brax.training.agents.sac import losses as sac_losses
 from brax.training.replay_buffers_test import jit_wrap
 from brax.training.types import Params, Policy, PRNGKey
-from brax.v1 import envs as envs_v1
+from brax import envs as envs_v1
 from flax.struct import dataclass
 
 from jaxgcrl.envs.wrappers import TrajectoryIdWrapper
@@ -199,10 +199,10 @@ def _init_training_state(
 class SAC:
     """Soft Actor-Critic (SAC) agent."""
 
-    learning_rate: float = 1e-4
-    discounting: float = 0.9
+    learning_rate: float = 3e-4
+    discounting: float = 0.99
     batch_size: int = 256
-    normalize_observations: bool = False
+    normalize_observations: bool = True
     reward_scaling: float = 1.0
     # target update rate
     tau: float = 0.005
@@ -210,13 +210,13 @@ class SAC:
     max_replay_size: Optional[int] = 10000
     deterministic_eval: bool = False
     train_step_multiplier: int = 1
-    unroll_length: int = 50
+    unroll_length: int = 62
     h_dim: int = 256
     n_hidden: int = 2
     # layer norm
     use_ln: bool = False
     # hindsight experience replay
-    use_her: bool = False
+    use_her: bool = True
 
     def train_fn(
         self,
@@ -665,6 +665,7 @@ class SAC:
                 make_policy,
                 _unpmap((training_state.normalizer_params, training_state.policy_params)),
                 unwrapped_env,
+                do_render=False,
             )
 
         # Create and initialize the replay buffer.
@@ -705,7 +706,7 @@ class SAC:
                     _unpmap((training_state.normalizer_params, training_state.policy_params)),
                     training_metrics,
                 )
-                do_render = (eval_epoch_num % config.visualization_interval) == 0
+                do_render = False
                 progress_fn(
                     current_step,
                     metrics,

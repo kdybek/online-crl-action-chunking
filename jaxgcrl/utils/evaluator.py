@@ -82,14 +82,18 @@ def generate_unroll(actor_step, training_state, env, env_state, unroll_length, e
     return final_state, data
 
 
-def generate_chunked_unroll(get_actions, action_step, receding_horizon, training_state, env, env_state, unroll_length, extra_fields=()):
+def generate_chunked_unroll(get_actions, action_step, receding_horizon, training_state, env, env_state, unroll_length, extra_fields=(), actor_key=None):
     """Collect trajectories of given unroll_length."""
 
     @jax.jit
     def f(carry, unused_t):
-        (state, chunk_idx, actions) = carry
+        (state, chunk_idx, actions, actor_key) = carry
 
-        new_actions = get_actions(training_state.actor_state, state.obs)
+        if actor_key is not None:
+            actor_key, subkey = jax.random.split(actor_key)
+            new_actions = get_actions(params=training_state.actor_state, observation=state.obs, key=subkey)
+        else:
+            new_actions = get_actions(training_state.actor_state, state.obs)
 
         chunk_idx = jnp.where(state.info["is_first"], 0, chunk_idx)
         need_replan = chunk_idx == 0
@@ -106,14 +110,18 @@ def generate_chunked_unroll(get_actions, action_step, receding_horizon, training
 
         chunk_idx = (chunk_idx + 1) % receding_horizon
 
-        return (nstate, chunk_idx, actions), transition
+        return (nstate, chunk_idx, actions, actor_key), transition
 
     B = env_state.obs.shape[0]
 
     init_chunk_idx = jnp.zeros(B, dtype=jnp.int32)
-    actions = get_actions(training_state.actor_state, env_state.obs)
-    (final_state, _, _), data = jax.lax.scan(
-        f, (env_state, init_chunk_idx, actions), (), length=unroll_length)
+    if actor_key is not None:
+        actor_key, subkey = jax.random.split(actor_key)
+        actions = get_actions(params=training_state.actor_state, observation=env_state.obs, key=subkey)
+    else:
+        actions = get_actions(training_state.actor_state, env_state.obs)
+    (final_state, _, _, _), data = jax.lax.scan(
+        f, (env_state, init_chunk_idx, actions, actor_key), (), length=unroll_length)
     return final_state, data
 
 
@@ -199,7 +207,7 @@ class ActorEvaluator:
 class ChunkedActorEvaluator:
     """Single GPU evaluator that evaluates an arbitrary chunked actor function. Used by the ACCRL agent."""
 
-    def __init__(self, get_actions, action_step, receding_horizon, eval_env, num_eval_envs, episode_length, key, full_chunk):
+    def __init__(self, get_actions, action_step, receding_horizon, eval_env, num_eval_envs, episode_length, key, full_chunk, need_actor_key=False):
         self._key = key
         self._eval_walltime = 0.0
         self._receding_horizon = receding_horizon
@@ -208,7 +216,9 @@ class ChunkedActorEvaluator:
         eval_env = envs.training.EvalWrapper(eval_env)
 
         def generate_eval_unroll(training_state, key):
-            reset_keys = jax.random.split(key, num_eval_envs)
+            reset_keys = jax.random.split(key, num_eval_envs + 1)
+            actor_key = reset_keys[-1]
+            reset_keys = reset_keys[:-1]
             eval_first_state = eval_env.reset(reset_keys)
             return generate_chunked_unroll(
                 get_actions,
@@ -218,6 +228,7 @@ class ChunkedActorEvaluator:
                 eval_env,
                 eval_first_state,
                 unroll_length=episode_length,
+                actor_key=actor_key if need_actor_key else None,
             )[0]
 
         self._generate_eval_unroll = jax.jit(generate_eval_unroll)
