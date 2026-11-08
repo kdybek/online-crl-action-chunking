@@ -696,8 +696,7 @@ class ACCRL:
             training_state, env_state, buffer_state, prefill_key
         )
 
-        receding_horizons = [1, 3, 5, 10, 15, 30]
-        receding_horizons = [h for h in receding_horizons if h <= self.action_chunk_length]
+        receding_horizons = [self.action_chunk_length]
         """Setting up evaluators"""
         evaluators = [
             ChunkedActorEvaluator(
