@@ -15,7 +15,7 @@ See _get_obs() and ArmEnvs._convert_action() for details.
 
 class ArmBinpickHard(ArmEnvs):
     def _get_xml_path(self):
-        return "envs/assets/panda_binpick_hard.xml"
+        return "jaxgcrl/envs/assets/panda_binpick_hard.xml"
 
     @property
     def action_size(self) -> int:
@@ -28,6 +28,7 @@ class ArmBinpickHard(ArmEnvs):
 
         self.goal_indices = jnp.array([0, 1, 2])  # Cube position
         self.completion_goal_indices = jnp.array([0, 1, 2])  # Identical
+        self.goal_indices_tuple = (0, 1, 2)
         self.state_dim = 18
         self.goal_reach_thresh = 0.1
 
