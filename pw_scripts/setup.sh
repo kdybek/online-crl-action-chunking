@@ -12,15 +12,13 @@
 
 unset LD_LIBRARY_PATH
 
-ml Python/3.11.5
+module load LUMI
 
 export XDG_CACHE_HOME=$SCRATCH/.cache
 export WANDB_API_KEY=$(cat ~/.wandb_key)
 export MUJOCO_GL=egl
 
-mkdir -p $SCRATCH/online-crl-action-chunking
-cd $SCRATCH/online-crl-action-chunking
-cp -rf ~/online-crl-action-chunking/* .
+cd ./online-crl-action-chunking
 
 python -m venv .venv
 source .venv/bin/activate
