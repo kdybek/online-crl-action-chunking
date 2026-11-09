@@ -288,14 +288,14 @@ class ACTD3:
     learning_rate: float = 3e-4
     discounting: float = 0.99
     batch_size: int = 256
-    normalize_observations: bool = False
+    normalize_observations: bool = True
     reward_scaling: float = 1.0
     tau: float = 0.005
     min_replay_size: int = 0
     max_replay_size: Optional[int] = 10000
     deterministic_eval: bool = False
     train_step_multiplier: int = 1
-    unroll_length: int = 50
+    unroll_length: int = 62
     policy_delay: int = 2
     noise_clip: int = 0.5
     smoothing_noise: int = 0.2
@@ -424,7 +424,7 @@ class ACTD3:
         critic_loss, actor_loss = losses.make_losses(
             td3_network=td3_network,
             reward_scaling=self.reward_scaling,
-            discounting=self.discounting ** config.action_chunk_length,
+            discounting=self.discounting ** self.action_chunk_length,
             smoothing=0.2,
             noise_clip=0.5,
         )
