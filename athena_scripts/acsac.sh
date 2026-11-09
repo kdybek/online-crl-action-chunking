@@ -5,8 +5,8 @@
 #SBATCH --mem=32G
 #SBATCH --gres=gpu:1
 #SBATCH --time=2:00:00
-#SBATCH --account=plgcontrastivesft-gpu-gh200
-#SBATCH --partition=plgrid-gpu-gh200
+#SBATCH --account=plgdiffusion3-gpu-a100
+#SBATCH --partition=plgrid-gpu-a100
 
 #SBATCH --array=0-24
 
