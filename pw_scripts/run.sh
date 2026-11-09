@@ -3,10 +3,10 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=32G
+#SBATCH --gres=gpu:1
 #SBATCH --time=10:00:00
-#SBATCH --partition=standard-g  # partition name
-#SBATCH --gpus-per-node=1       # Allocate one gpu per MPI rank
-#SBATCH --account=project_465003228
+#SBATCH --account=plgcontrastivesft-gpu-gh200
+#SBATCH --partition=plgrid-gpu-gh200
 
 #SBATCH --array=0-2,5-7,10-12,15-17,20-22
 
@@ -15,14 +15,14 @@
 
 unset LD_LIBRARY_PATH
 
-module load cray-python/3.11.7
+ml Python/3.11.5
 
-export PATH=/users/dybekkam/.local/bin:$PATH
-
+export XDG_CACHE_HOME=$SCRATCH/.cache
 export WANDB_API_KEY=$(cat ~/.wandb_key)
 export MUJOCO_GL=egl
 
-cd ~/online-crl-action-chunking
+cd $SCRATCH/online-crl-action-chunking
+cp -rf ~/online-crl-action-chunking/* .
 
 source .venv/bin/activate
 
