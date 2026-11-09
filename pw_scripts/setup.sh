@@ -3,10 +3,10 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
-#SBATCH --gres=gpu:1
 #SBATCH --time=1:00:00
-#SBATCH --account=plgcontrastivesft-gpu-gh200
-#SBATCH --partition=plgrid-gpu-gh200
+#SBATCH --partition=standard-g  # partition name
+#SBATCH --gpus-per-node=1       # Allocate one gpu per MPI rank
+#SBATCH --account=project_465003228
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 
