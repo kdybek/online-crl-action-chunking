@@ -21,8 +21,8 @@ export MUJOCO_GL=egl
 
 cd ~/online-crl-action-chunking
 
-python3 -m venv .venv
+python -m venv .venv
 source .venv/bin/activate
 
 pip install --upgrade pip
-pip install -e .
+pip install .

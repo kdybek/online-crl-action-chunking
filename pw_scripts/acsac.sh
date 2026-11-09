@@ -16,13 +16,13 @@
 unset LD_LIBRARY_PATH
 
 ml Python/3.11.5
+module load cray-python/3.11.7
 
 export XDG_CACHE_HOME=$SCRATCH/.cache
 export WANDB_API_KEY=$(cat ~/.wandb_key)
 export MUJOCO_GL=egl
 
-cd $SCRATCH/online-crl-action-chunking
-cp -rf ~/online-crl-action-chunking/* .
+cd ~/online-crl-action-chunking
 
 source .venv/bin/activate
 
