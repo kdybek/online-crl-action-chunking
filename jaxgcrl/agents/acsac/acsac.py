@@ -40,8 +40,6 @@ from jaxgcrl.envs.wrappers import TrajectoryIdWrapper
 from jaxgcrl.utils.evaluator import ChunkedActorEvaluator, Evaluator
 from jaxgcrl.utils.replay_buffer import TrajectoryUniformSamplingQueue
 
-from types import SimpleNamespace
-
 from . import networks
 
 Metrics = types.Metrics

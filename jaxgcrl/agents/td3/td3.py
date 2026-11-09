@@ -29,7 +29,7 @@ from brax.training.acme import running_statistics, specs
 from brax.training.acme.types import NestedArray
 from brax.training.replay_buffers_test import jit_wrap
 from brax.training.types import Params, Policy, PRNGKey
-from brax.v1 import envs as envs_v1
+from brax import envs as envs_v1
 from flax.struct import dataclass
 
 from jaxgcrl.envs.wrappers import TrajectoryIdWrapper
@@ -681,6 +681,7 @@ class TD3:
                 make_policy,
                 _unpmap((training_state.normalizer_params, training_state.policy_params)),
                 unwrapped_env,
+                do_render=False,
             )
 
         # Create and initialize the replay buffer.
@@ -728,7 +729,7 @@ class TD3:
                     make_policy,
                     _unpmap((training_state.normalizer_params, training_state.policy_params)),
                     unwrapped_env,
-                    do_render,
+                    do_render=False,
                 )
 
         total_steps = current_step

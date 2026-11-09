@@ -34,7 +34,7 @@ from brax.training.acme import running_statistics, specs
 from brax.training.agents.ppo import losses as ppo_losses
 from brax.training.agents.ppo import networks as ppo_networks
 from brax.training.types import Params, PRNGKey
-from brax.v1 import envs as envs_v1
+from brax import envs as envs_v1
 from etils import epath
 from orbax import checkpoint as ocp
 
