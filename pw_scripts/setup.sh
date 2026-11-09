@@ -15,7 +15,6 @@ unset LD_LIBRARY_PATH
 module load LUMI
 module load cray-python/3.11.7
 
-export XDG_CACHE_HOME=$SCRATCH/.cache
 export WANDB_API_KEY=$(cat ~/.wandb_key)
 export MUJOCO_GL=egl
 

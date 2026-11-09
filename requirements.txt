@@ -1,0 +1,14 @@
+pip
+jax[cuda12]==0.7.2
+flax
+optax
+brax==0.12.5
+matplotlib
+mujoco
+mujoco-mjx
+numpy
+scipy
+tyro
+warp-lang
+wandb
+wandb-osh

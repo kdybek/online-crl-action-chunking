@@ -15,10 +15,10 @@
 
 unset LD_LIBRARY_PATH
 
-ml Python/3.11.5
 module load cray-python/3.11.7
 
-export XDG_CACHE_HOME=$SCRATCH/.cache
+export PATH=/users/dybekkam/.local/bin:$PATH
+
 export WANDB_API_KEY=$(cat ~/.wandb_key)
 export MUJOCO_GL=egl
 
