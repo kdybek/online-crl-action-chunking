@@ -424,7 +424,7 @@ class ACTD3:
         critic_loss, actor_loss = losses.make_losses(
             td3_network=td3_network,
             reward_scaling=self.reward_scaling,
-            discounting=self.discounting,
+            discounting=self.discounting ** config.action_chunk_length,
             smoothing=0.2,
             noise_clip=0.5,
         )
