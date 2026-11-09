@@ -21,8 +21,8 @@ export XDG_CACHE_HOME=$SCRATCH/.cache
 export WANDB_API_KEY=$(cat ~/.wandb_key)
 export MUJOCO_GL=egl
 
-cd $SCRATCH/online-q-chunking
-cp -rf ~/online-q-chunking/* .
+cd $SCRATCH/online-crl-action-chunking
+cp -rf ~/online-crl-action-chunking/* .
 
 source .venv/bin/activate
 
