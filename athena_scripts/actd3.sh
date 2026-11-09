@@ -15,6 +15,7 @@
 
 unset LD_LIBRARY_PATH
 
+ml GCCcore/13.2.0
 ml Python/3.11.5
 
 export XDG_CACHE_HOME=$SCRATCH/.cache
